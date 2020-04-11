@@ -1,6 +1,7 @@
 package WorkerPool
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -13,34 +14,29 @@ type Runnable interface {
 	Id() string
 }
 
-func runIt(r Runnable) error {
-	return r.Run()
-}
-
-func getId(r Runnable) string {
-	return r.Id()
-}
-
 // WorkerPool is a set of workers waiting for jobs to be queued and executed.
 // Create with
 //  NewWorkerPool()
 type WorkerPool struct {
-	waitGroup   sync.WaitGroup
-	noOfWorkers int
-	bufferSize  int
-	jobs        chan Runnable
+	waitGroup      sync.WaitGroup
+	noOfWorkers    int
+	workersRunning int
+	jobs           chan Runnable
+	bufferSize     int
 
-	stop chan bool
-
+	// these control the state of the worker pool
 	stateMutex sync.Mutex
 	closed     bool
+	stopped    bool
 
-	finished       []Runnable
-	finishedMutex  sync.Mutex
-	workersRunning int32
+	// these control the jobs
+	jobMutex   sync.Mutex
+	finished   []Runnable
+	jobsQueued int
 }
 
-// NewWorkerPool creates a new pool of Workers
+// NewWorkerPool creates a new pool of Workers and immediately
+// starts them.
 // The number of workers created is given by noOfWorkers and
 // the there can be bufferSize jobs queued before the channel
 // blocks the queuing side to wait for free queue space
@@ -51,62 +47,83 @@ func NewWorkerPool(noOfWorkers int, bufferSize int) *WorkerPool {
 		noOfWorkers:    noOfWorkers,
 		bufferSize:     bufferSize,
 		jobs:           make(chan Runnable, bufferSize),
-		stop:           make(chan bool),
 		stateMutex:     sync.Mutex{},
 		closed:         false,
+		stopped:        false,
+		jobMutex:       sync.Mutex{},
 		finished:       make([]Runnable, 0, bufferSize),
-		finishedMutex:  sync.Mutex{},
+		jobsQueued:     0,
 		workersRunning: 0,
 	}
 
 	fmt.Printf("Starting %d workers\n", wp.noOfWorkers)
 	for w := 1; w <= wp.noOfWorkers; w++ {
-		wp.finishedMutex.Lock()
+		wp.jobMutex.Lock()
 		wp.waitGroup.Add(1)
 		wp.workersRunning++
 		go worker(wp, w)
-		wp.finishedMutex.Unlock()
+		wp.jobMutex.Unlock()
 	}
 
 	return wp
 }
 
 // QueueJob adds a new job to the queue of jobs to be execute by the workers
-func (wp *WorkerPool) QueueJob(r Runnable) {
+func (wp *WorkerPool) QueueJob(r Runnable) error {
 	wp.stateMutex.Lock()
 	defer wp.stateMutex.Unlock()
-	if !wp.closed {
+	// if the worker pool is not closed or stopped
+	// add new job
+	if !wp.closed && !wp.stopped {
 		wp.jobs <- r
-	} else {
-		log.Println("Could not queue job as WorkerPool was closed")
+		wp.jobMutex.Lock()
+		wp.jobsQueued++
+		wp.jobMutex.Unlock()
+		return nil
 	}
+	return errors.New("not accepting new jobs as WorkerPool is closed or stopped")
 }
 
 // Close tells the worker pool to shut down after all outstanding
 // jobs are finished
 func (wp *WorkerPool) Close() {
 	fmt.Printf("Closing WorkerPool. Finishing %d jobs\n", len(wp.jobs))
+	// Set the closed flag so no new jobs are accepted.
+	// Then close the channel
 	wp.stateMutex.Lock()
 	wp.closed = true
-	wp.stateMutex.Unlock()
 	close(wp.jobs)
+	wp.stateMutex.Unlock()
 }
 
 // Stop shuts downs the WorkerPool as soon as possible
 // omitting open jobs.
 func (wp *WorkerPool) Stop() {
-	panic("not implemented yet")
+	fmt.Printf("Stopping WorkerPool. Skipping %d jobs\n", len(wp.jobs))
+	// add nil jobs to the queue to wake up waiting workers
+	// so they can see the stopped flag.
+	// Unfortunately I do not yet know how to interrupt a
+	// channel read operation.
+	for i := 0; i < wp.noOfWorkers; i++ {
+		wp.jobs <- nil
+	}
+
+	// close the channel and signal the workers to stop
+	// immediately
+	wp.stateMutex.Lock()
+	wp.closed = true
+	close(wp.jobs)
+	wp.stopped = true
+	wp.stateMutex.Unlock()
 }
 
 // GetFinished returns finished jobs
 func (wp *WorkerPool) GetFinished() (Runnable, bool) {
-	wp.stateMutex.Lock()
-	defer wp.stateMutex.Unlock()
+	wp.jobMutex.Lock()
+	defer wp.jobMutex.Unlock()
 
-	wp.finishedMutex.Lock()
-	defer wp.finishedMutex.Unlock()
-
-	// pool is closed, all jobs are taken and no workers running, no more results
+	// pool is closed, all jobs are taken and no workers
+	// running, no more results
 	if wp.workersRunning == 0 && len(wp.finished) == 0 {
 		return nil, true
 	}
@@ -123,30 +140,54 @@ func (wp *WorkerPool) GetFinished() (Runnable, bool) {
 		}
 		return f, false
 	}
-	// workers are still running and but we don't have a finished job
-	// return nil but signal that we are not done
+	// workers are still running  but we don't have a finished job
+	// return nil but not done to signal that we are not done
 	return nil, false
 }
 
 // ///////////////////////////////
 // Worker
 func worker(wp *WorkerPool, id int) {
+	// make sure to reduce the wait group and running
+	// worker counters.
+	// Unfortunately WaitGroup does not has external
+	// access to its counters
 	defer func() {
-		wp.finishedMutex.Lock()
+		wp.jobMutex.Lock()
 		wp.workersRunning--
 		wp.waitGroup.Done()
-		wp.finishedMutex.Unlock()
+		wp.jobMutex.Unlock()
 	}()
+
 	fmt.Printf("Worker %d started\n", id)
 	for j := range wp.jobs {
-		// fmt.Printf("Job %s started\n", j.Id())
+
+		// if we get a nil job it usually signals that
+		// we should stop. if not just continue and take
+		// the next job.
+		if j == nil {
+			if wp.stopped {
+				return
+			}
+			continue
+		}
+
+		fmt.Printf("Worker %d started job: %s\n", id, j.Id())
+
+		// run the job by calling its Run() function
 		if err := j.Run(); err != nil {
 			log.Printf("Error in job %s: %s\n", j.Id(), err)
 		}
-		wp.finishedMutex.Lock()
+
+		// store the kob in the finished jobs array
+		wp.jobMutex.Lock()
 		wp.finished = append(wp.finished, j)
-		wp.finishedMutex.Unlock()
-		// fmt.Printf("Job %s finished: %p %p\n", j.Id(),j, wp.finished[len(wp.finished)-1])
+		wp.jobMutex.Unlock()
+
+		// if the pool has been stopped close the the worker down and return
+		if wp.stopped {
+			return
+		}
 	}
 	fmt.Printf("Worker %d is shutting down\n", id)
 }
