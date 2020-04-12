@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime"
 	"sync"
 )
 
@@ -90,7 +91,10 @@ func (wp *WorkerPool) QueueJob(r Job) (err error) {
 }
 
 // Close tells the worker pool to not accept any new jobs and
-// to shut down after all queued and running jobs are finished
+// to shut down after all queued and running jobs are finished.
+// This function returns immediately but shutting down all
+// workers might take a while depending on the size of the
+// waiting jobs queue and the duration of jobs.
 func (wp *WorkerPool) Close() {
 	// already closed
 	if wp.closedFlag {
@@ -101,10 +105,23 @@ func (wp *WorkerPool) Close() {
 	// Set the closed flag so no new jobs are accepted.
 	// Then close the channel
 	wp.closedFlag = true
+
 	// tell the workers to check for closed as soon as possible
-	for i := 0; i < wp.noOfWorkers; i++ {
-		wp.closed <- true
-	}
+	// loop until all workers have closed down
+	go func() {
+		for {
+			if wp.workersRunning > 0 {
+				select {
+				case wp.closed <- true:
+				default:
+					runtime.Gosched()
+				}
+			} else {
+				close(wp.jobs)
+				break
+			}
+		}
+	}()
 }
 
 // Stop shuts downs the WorkerPool as soon as possible
@@ -123,21 +140,20 @@ func (wp *WorkerPool) Stop() {
 
 	// tell the workers to stop as soon as possible
 	// when a worker is running a job this will stop
-	// after completion of this job
+	// after completion of this job.
+	// loop until all workers have stopped
 	for {
 		if wp.workersRunning > 0 {
 			select {
 			case wp.stop <- true:
 			default:
+				runtime.Gosched()
 			}
 		} else {
 			close(wp.jobs)
 			break
 		}
 	}
-
-	// wait until all workers are shut down.
-	wp.waitGroup.Wait()
 }
 
 // Shutdown stops the WorkerPool and closes the finished channel.
@@ -155,7 +171,7 @@ func (wp *WorkerPool) Shutdown() {
 // expected.
 func (wp *WorkerPool) GetFinished() (Job, bool) {
 	// try to get a finished job to return.
-	// if no finished job available check if any
+	// if no finished jobs are available check if any
 	// workers are still running.
 	select {
 	case job, ok := <-wp.finished:
@@ -210,7 +226,7 @@ func (wp *WorkerPool) InProgress() int {
 // HasJobs returns true if there is at least one job still in to
 // to process or retrieve
 func (wp *WorkerPool) HasJobs() bool {
-	return wp.working+len(wp.finished)+len(wp.jobs) > 0
+	return wp.Jobs() > 0
 }
 
 // Jobs returns the total number of Jobs in the WorkerPool
@@ -221,8 +237,8 @@ func (wp *WorkerPool) Jobs() int {
 // ///////////////////////////////
 // Worker
 func worker(wp *WorkerPool, id int) {
-	// make sure to reduce the wait group and running
-	// worker counters.
+	// make sure to tell the wait group you're done
+	// and decrease the workersRunning counter.
 	// Unfortunately WaitGroup does not has external
 	// access to its counters
 	defer func() {
@@ -233,18 +249,16 @@ func worker(wp *WorkerPool, id int) {
 
 	fmt.Printf("Worker %d started\n", id)
 
-	for {
-
-		// loop for querying incoming jobs or stop signal
+	for { // loop for querying incoming jobs or stop signal
 		select {
-
-		case job := <-wp.jobs:
-
-			if job == nil { // ignore nil jobs
+		case job := <-wp.jobs: // check if a job is available
+			// ignore nil jobs
+			if job == nil {
 				continue
 			}
-
+			// TODO: this is not transactional
 			wp.working++
+
 			fmt.Printf("Worker %d started job: %s\n", id, job.Id())
 
 			// run the job by calling its Run() function
@@ -252,7 +266,7 @@ func worker(wp *WorkerPool, id int) {
 				log.Printf("Error in job %s: %s\n", job.Id(), err)
 			}
 
-			// storing the job in the finished channel
+			// storing the job in the finished queue
 			// if the finished channel is full this waits here until
 			// it either is emptied by another thread or the stop signal
 			// is received
@@ -262,18 +276,14 @@ func worker(wp *WorkerPool, id int) {
 			case <-wp.stop:
 				return
 			}
-
-		case <-wp.closed:
+		case <-wp.closed: // check for a closed signal
 			if len(wp.jobs) == 0 {
 				return
 			} else {
 				wp.closed <- true
 			}
-
-		case <-wp.stop:
+		case <-wp.stop: // check for a stop signal
 			return
-
-		}
-
-	}
+		} // select
+	} // for
 }
