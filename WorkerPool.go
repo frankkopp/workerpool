@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"runtime"
 	"sync"
 )
 
@@ -149,31 +148,23 @@ func (wp *WorkerPool) GetFinishedWait() (Job, bool) {
 
 // OpenJobs returns the number of not yet started jobs
 func (wp *WorkerPool) OpenJobs() int {
-	wp.workingMutex.Lock()
-	defer wp.workingMutex.Unlock()
 	return len(wp.jobs)
 }
 
 // FinishedJobs returns the number of finished jobs
 func (wp *WorkerPool) FinishedJobs() int {
-	wp.workingMutex.Lock()
-	defer wp.workingMutex.Unlock()
 	return len(wp.finished)
 }
 
 // InProgress returns the number of jobs currently running
 func (wp *WorkerPool) InProgress() int {
-	wp.workingMutex.Lock()
-	defer wp.workingMutex.Unlock()
 	return wp.working
 }
 
-// Jobs returns the total number of jobs currently
-// queuing, computing and finished
-func (wp *WorkerPool) Jobs() int {
-	wp.workingMutex.Lock()
-	defer wp.workingMutex.Unlock()
-	return len(wp.jobs) + wp.working + len(wp.finished)
+// HasJobs returns true if there is at least one job still in to
+// to process or retrieve
+func (wp *WorkerPool) HasJobs() bool {
+	return wp.working+len(wp.finished)+len(wp.jobs) > 0
 }
 
 // ///////////////////////////////
@@ -191,20 +182,18 @@ func worker(wp *WorkerPool, id int) {
 	fmt.Printf("Worker %d started\n", id)
 
 	for {
-		wp.workingMutex.Lock()
 		job, ok := <-wp.jobs
+		wp.working++
 		// if we get a nil job it usually signals that
 		// we should stop. if not just continue and take
 		// the next job.
 		if job == nil {
-			wp.workingMutex.Unlock()
+			wp.working--
 			if wp.stopped || !ok {
 				break
 			}
 			continue
 		}
-		wp.working++
-		wp.workingMutex.Unlock()
 
 		fmt.Printf("Worker %d started job: %s\n", id, job.Id())
 
@@ -214,19 +203,8 @@ func worker(wp *WorkerPool, id int) {
 		}
 
 		// store the job in the finished channel
-	Loop:
-		for {
-			wp.workingMutex.Lock()
-			select {
-			case wp.finished <- job:
-				wp.working--
-				wp.workingMutex.Unlock()
-				break Loop
-			default:
-				wp.workingMutex.Unlock()
-				runtime.Gosched()
-			}
-		}
+		wp.finished <- job
+		wp.working--
 
 		// if the pool has been stopped close the the
 		// worker down and return

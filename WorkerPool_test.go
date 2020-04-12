@@ -102,7 +102,6 @@ func TestQueueOne(t *testing.T) {
 	if err != nil {
 		log.Println("could not add job")
 	}
-	assert.EqualValues(t, 1, pool.Jobs())
 	pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 1, pool.FinishedJobs())
@@ -125,7 +124,6 @@ func TestQueueMany(t *testing.T) {
 			log.Println("could not add job")
 		}
 	}
-	assert.EqualValues(t, bufferSize, pool.Jobs())
 	pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, bufferSize, pool.FinishedJobs())
@@ -153,7 +151,7 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 	count := 0
 	done := false
 	var job Job
-	for pool.Jobs() > 0 {
+	for pool.HasJobs() {
 		job, done = pool.GetFinished()
 		if job != nil {
 			fmt.Printf("Result: %s\n", job.(*WorkPackage).result)
@@ -166,4 +164,10 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 
 	pool.Close()
 	assert.EqualValues(t, bufferSize, count)
+}
+
+func TestStressTest(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		t.Run("Stress", TestWorkerPool_GetFinished)
+	}
 }
