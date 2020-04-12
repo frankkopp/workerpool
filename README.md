@@ -1,6 +1,8 @@
 # WorkerPool
 A WorkerPool Implementation in GO
 
+[![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
+
 A common problem of parallel computing in high performance applications is the cost of starting new parallel threads.
 Although GO is very effective and fast when it comes to start new go routines it still might be too expensive in some cases.
 A good approach is usually to have a pool of workers which run separately in different threads (or go routines). Starting a 
