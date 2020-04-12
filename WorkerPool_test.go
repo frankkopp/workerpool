@@ -37,7 +37,7 @@ func (w *WorkPackage) Run() error {
 }
 
 // Stress tests
-func TestStressTest(t *testing.T) {
+func _TestStressTest(t *testing.T) {
 	t.Parallel()
 	for i := 0; i < 10; i++ {
 		t.Run("Stress", TestStop)
@@ -57,7 +57,7 @@ func TestNewWorkerPool(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 1
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 }
 
@@ -67,7 +67,7 @@ func TestStop(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	pool.Stop()
 	assert.EqualValues(t, 0, pool.workersRunning)
@@ -84,7 +84,7 @@ func TestDoubleStop(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	pool.Stop()
 	assert.EqualValues(t, 0, pool.workersRunning)
@@ -102,7 +102,7 @@ func TestClose(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	pool.Close()
@@ -120,7 +120,7 @@ func TestDoubleClose(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	pool.Close()
 	pool.Close()
@@ -132,7 +132,7 @@ func TestShutdown(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	pool.Shutdown()
 	job, done := pool.GetFinished()
@@ -144,7 +144,7 @@ func TestGetFinished(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	job, done := pool.GetFinished()
 	assert.False(t, done)
@@ -155,7 +155,7 @@ func TestGetFinishedWait(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	go func() {
 		time.Sleep(1 * time.Second)
@@ -171,7 +171,7 @@ func TestQueueOne(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 4
 	bufferSize := 50
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	job := &WorkPackage{
@@ -194,7 +194,7 @@ func TestQueueMany(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := 32
 	bufferSize := 5
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	for i := 1; i <= bufferSize; i++ {
 		job := &WorkPackage{
@@ -216,7 +216,7 @@ func TestQueueMany(t *testing.T) {
 func TestWorkerPool_GetFinished(t *testing.T) {
 	noOfWorkers := 8
 	bufferSize := 100
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	for i := 1; i <= bufferSize; i++ {
 		job := &WorkPackage{
@@ -255,7 +255,7 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 func TestWorkerPool_Loop(t *testing.T) {
 	noOfWorkers := 16
 	bufferSize := 1000
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	go func() {
@@ -305,7 +305,7 @@ func TestWorkerPool_Loop(t *testing.T) {
 func TestWorkerPool_Loop2(t *testing.T) {
 	noOfWorkers := 16
 	bufferSize := 100
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	go func() {
@@ -356,7 +356,7 @@ func TestWorkerPool_Loop2(t *testing.T) {
 func TestWorkerPool_Two(t *testing.T) {
 	noOfWorkers := 16
 	bufferSize := 1000
-	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	go func() {
@@ -392,6 +392,60 @@ func TestWorkerPool_Two(t *testing.T) {
 				break
 			}
 		}
+	}()
+
+	i := int32(0)
+	// producer 1
+	go func() {
+		for {
+			atomic.AddInt32(&i, 1)
+			job := &WorkPackage{
+				jobID:  int(i),
+				f:      10000000.0,
+				div:    1.0000001,
+				result: 0,
+			}
+			fmt.Printf("P1 adds job: %d\n", i)
+			err := pool.QueueJob(job)
+			if err != nil {
+				log.Println("could not add job")
+				break
+			}
+		}
+	}()
+
+	// producer 2
+	go func() {
+		for {
+			atomic.AddInt32(&i, 1)
+			job := &WorkPackage{
+				jobID:  int(i),
+				f:      1000000.0,
+				div:    1.000001,
+				result: 0,
+			}
+			fmt.Printf("P2 adds job: %d\n", i)
+			err := pool.QueueJob(job)
+			if err != nil {
+				log.Println("could not add job")
+				break
+			}
+		}
+	}()
+
+	pool.waitGroup.Wait()
+}
+
+// Two producers. Finished jobs are ignored.
+func TestWorkerPool_ProduceOnly(t *testing.T) {
+	noOfWorkers := 16
+	bufferSize := 1000
+	pool := NewWorkerPool(noOfWorkers, bufferSize, false)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	go func() {
+		time.Sleep(30 * time.Second)
+		pool.Close()
 	}()
 
 	i := int32(0)

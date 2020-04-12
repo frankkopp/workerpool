@@ -22,8 +22,12 @@ type WorkerPool struct {
 	waitGroup      sync.WaitGroup
 	noOfWorkers    int
 	workersRunning int
-	working        int
-	workingMutex   sync.Mutex
+
+	// number of job in progress - TODO not transactional yet
+	working int
+
+	// flag for storing finished jobs or not
+	queueFinished bool
 
 	// define channels for job queues and finished jobs
 	bufferSize int
@@ -32,8 +36,6 @@ type WorkerPool struct {
 	stop       chan bool
 	closed     chan bool
 	closedFlag bool
-
-	jobsQueued int
 }
 
 // NewWorkerPool creates a new pool of Workers and immediately
@@ -41,21 +43,20 @@ type WorkerPool struct {
 // The number of workers created is given by noOfWorkers and
 // the there can be bufferSize jobs queued before the channel
 // blocks the queuing side to wait for free queue space
-func NewWorkerPool(noOfWorkers int, bufferSize int) *WorkerPool {
+func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerPool {
 
 	pool := &WorkerPool{
 		waitGroup:      sync.WaitGroup{},
 		noOfWorkers:    noOfWorkers,
 		workersRunning: 0,
 		working:        0,
-		workingMutex:   sync.Mutex{},
+		queueFinished:  queueFinished,
 		bufferSize:     bufferSize,
 		jobs:           make(chan Job, bufferSize),
 		finished:       make(chan Job, bufferSize),
 		stop:           make(chan bool),
 		closed:         make(chan bool),
 		closedFlag:     false,
-		jobsQueued:     0,
 	}
 
 	fmt.Printf("Starting %d workers\n", pool.noOfWorkers)
@@ -169,7 +170,13 @@ func (wp *WorkerPool) Shutdown() {
 // or nil. In case of nil it also signals if the
 // WorkerPool is done and no more results are to be
 // expected.
+// If the WorkerPool has been started with
+// queueFinished=false then this returns immediately
+// with nil and true.
 func (wp *WorkerPool) GetFinished() (Job, bool) {
+	if !wp.queueFinished {
+		return nil, true
+	}
 	// try to get a finished job to return.
 	// if no finished jobs are available check if any
 	// workers are still running.
@@ -192,7 +199,13 @@ func (wp *WorkerPool) GetFinished() (Job, bool) {
 // or blocks and waits until finished jobs are available.
 // If the WorkerPool finished queue is closed this returns
 // nil and true.
+// If the WorkerPool has been started with
+// queueFinished=false then this returns immediately
+// with nil and true.
 func (wp *WorkerPool) GetFinishedWait() (Job, bool) {
+	if !wp.queueFinished {
+		return nil, true
+	}
 	// try to get a finished job to return.
 	// if no finished job available check if any
 	// workers are still running.
@@ -270,11 +283,13 @@ func worker(wp *WorkerPool, id int) {
 			// if the finished channel is full this waits here until
 			// it either is emptied by another thread or the stop signal
 			// is received
-			select {
-			case wp.finished <- job:
-				wp.working--
-			case <-wp.stop:
-				return
+			if wp.queueFinished {
+				select {
+				case wp.finished <- job:
+					wp.working--
+				case <-wp.stop:
+					return
+				}
 			}
 		case <-wp.closed: // check for a closed signal
 			if len(wp.jobs) == 0 {
