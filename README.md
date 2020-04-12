@@ -14,7 +14,7 @@ This Worker Pool shall fulfill the following requirements.
 ## Requirements:
 * Configurable number of workers
 * Configurable size for job queue 
-    * Non blocking until jobs queue is full
+    * Non blocking until job queue is full
 * Stoppable (skip waiting jobs)
     * prevent adding of new jobs
     * completing all jobs already started
@@ -29,13 +29,14 @@ This Worker Pool shall fulfill the following requirements.
     * ignore multiple calls to close
     * be stoppable (skipp all remaining queued jobs)
 * Allow shutdown 
+    * Stop the WorkerPool
     * prevent further reading from the finished queue
     * wake (unblock) already waiting readers
 * Allow queuing of jobs
     * if the job queue still has capacity return immediately
-    * if the job queue is full block the caller until a slot is free
-        * if the job queue is closed wake/unblock any callers who are blocked and return an error
-    * If the queue is closed return immediately with an error
+    * if the job queue is full, block the caller until a slot is free
+        * if the job queue is closed, wake/unblock any callers who are blocked and return an error
+    * If the queue is closed, return immediately with an error
 * Allow retrieving of finished jobs
     * Processes can retrieve finished jobs by polling the WorkerPool
     * This can be blocking or non blacking
@@ -48,7 +49,7 @@ This Worker Pool shall fulfill the following requirements.
         * wait until a finished job becomes available if the WorkPool is still able to produce finished jobs
             * E.g. the job queue is not closed
             * E.g. the job queue is closed but there are still jobs in progress
-        * return nil if the job queue is closed and there are no more jobs in progress
+        * unblock and return nil if the job queue is closed and there are no more jobs in progress
 
 ### Optional requirements:
 * Have counter for jobs waiting, jobs in progress and jobs finished
