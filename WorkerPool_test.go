@@ -37,7 +37,7 @@ func (w *WorkPackage) Run() error {
 }
 
 // Stress tests
-func _TestStressTest(t *testing.T) {
+func TestStressTest(t *testing.T) {
 	t.Parallel()
 	for i := 0; i < 10; i++ {
 		t.Run("Stress", TestStop)
