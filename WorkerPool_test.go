@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func (w *WorkPackage) Run() error {
 // Stress tests
 func TestStressTest(t *testing.T) {
 	t.Parallel()
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		t.Run("Stress", TestStop)
 		t.Run("Stress", TestDoubleStop)
 		t.Run("Stress", TestClose)
@@ -191,8 +192,8 @@ func TestQueueOne(t *testing.T) {
 
 func TestQueueMany(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := 4
-	bufferSize := 50
+	noOfWorkers := 32
+	bufferSize := 5
 	pool := NewWorkerPool(noOfWorkers, bufferSize)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	for i := 1; i <= bufferSize; i++ {
@@ -213,8 +214,8 @@ func TestQueueMany(t *testing.T) {
 }
 
 func TestWorkerPool_GetFinished(t *testing.T) {
-	noOfWorkers := 4
-	bufferSize := 50
+	noOfWorkers := 8
+	bufferSize := 100
 	pool := NewWorkerPool(noOfWorkers, bufferSize)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	for i := 1; i <= bufferSize; i++ {
@@ -229,7 +230,6 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 			log.Println("could not add job")
 		}
 	}
-	assert.EqualValues(t, bufferSize, pool.OpenJobs()+pool.InProgress()+pool.FinishedJobs())
 
 	count := 0
 	done := false
@@ -247,4 +247,191 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 
 	pool.Close()
 	assert.EqualValues(t, bufferSize, count)
+}
+
+// This uses a separate consumer thread to read results
+// and a timer to close the WorkerPool.
+// Producer is much faster
+func TestWorkerPool_Loop(t *testing.T) {
+	noOfWorkers := 16
+	bufferSize := 1000
+	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	go func() {
+		time.Sleep(30 * time.Second)
+		pool.Close()
+	}()
+
+	// consumer
+	go func() {
+		done := false
+		var job Job
+		for pool.HasJobs() {
+			job, done = pool.GetFinished()
+			if job != nil {
+				fmt.Printf("Result: %s\n", job.(*WorkPackage).result)
+			}
+			if done {
+				break
+			}
+		}
+	}()
+
+	// producer
+	i := 0
+	for {
+		i++
+		job := &WorkPackage{
+			jobID:  i,
+			f:      10000000.0,
+			div:    1.0000001,
+			result: 0,
+		}
+		fmt.Printf("Add job: %d\n", i)
+		err := pool.QueueJob(job)
+		if err != nil {
+			log.Println("could not add job")
+			break
+		}
+	}
+
+	pool.Close()
+}
+
+// This uses a separate consumer thread to read results
+// and a timer to close the WorkerPool.
+// Producer is much slower
+func TestWorkerPool_Loop2(t *testing.T) {
+	noOfWorkers := 16
+	bufferSize := 100
+	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	go func() {
+		time.Sleep(30 * time.Second)
+		pool.Close()
+	}()
+
+	// consumer
+	go func() {
+		done := false
+		var job Job
+		for pool.HasJobs() {
+			job, done = pool.GetFinished()
+			if job != nil {
+				fmt.Printf("Result: %s\n", job.(*WorkPackage).result)
+			}
+			if done {
+				break
+			}
+		}
+	}()
+
+	// producer
+	i := 0
+	for {
+		i++
+		job := &WorkPackage{
+			jobID:  i,
+			f:      1000000.0,
+			div:    1.000001,
+			result: 0,
+		}
+		fmt.Printf("Add job: %d\n", i)
+		err := pool.QueueJob(job)
+		if err != nil {
+			log.Println("could not add job")
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	pool.Close()
+}
+
+// This uses two separate consumer threads to read results
+// and a timer to close the WorkerPool.
+// It also uses two producers
+func TestWorkerPool_Two(t *testing.T) {
+	noOfWorkers := 16
+	bufferSize := 1000
+	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	go func() {
+		time.Sleep(30 * time.Second)
+		pool.Close()
+	}()
+
+	// consumer1
+	go func() {
+		done := false
+		var job Job
+		for pool.HasJobs() {
+			job, done = pool.GetFinished()
+			if job != nil {
+				fmt.Printf("Result Consumer 1: %s\n", job.(*WorkPackage).result)
+			}
+			if done {
+				break
+			}
+		}
+	}()
+
+	// consumer1
+	go func() {
+		done := false
+		var job Job
+		for pool.HasJobs() {
+			job, done = pool.GetFinished()
+			if job != nil {
+				fmt.Printf("Result Consumer 2: %s\n", job.(*WorkPackage).result)
+			}
+			if done {
+				break
+			}
+		}
+	}()
+
+	i := int32(0)
+	// producer 1
+	go func() {
+		for {
+			atomic.AddInt32(&i, 1)
+			job := &WorkPackage{
+				jobID:  int(i),
+				f:      10000000.0,
+				div:    1.0000001,
+				result: 0,
+			}
+			fmt.Printf("P1 adds job: %d\n", i)
+			err := pool.QueueJob(job)
+			if err != nil {
+				log.Println("could not add job")
+				break
+			}
+		}
+	}()
+
+	// producer 2
+	go func() {
+		for {
+			atomic.AddInt32(&i, 1)
+			job := &WorkPackage{
+				jobID:  int(i),
+				f:      1000000.0,
+				div:    1.000001,
+				result: 0,
+			}
+			fmt.Printf("P2 adds job: %d\n", i)
+			err := pool.QueueJob(job)
+			if err != nil {
+				log.Println("could not add job")
+				break
+			}
+		}
+	}()
+
+	pool.waitGroup.Wait()
 }
