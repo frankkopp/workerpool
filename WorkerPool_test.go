@@ -35,13 +35,25 @@ func (w *WorkPackage) Run() error {
 	return nil
 }
 
+// Stress tests
+func TestStressTest(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		t.Run("Stress", TestStop)
+		t.Run("Stress", TestDoubleStop)
+		t.Run("Stress", TestClose)
+	}
+}
+
+// Create a pool and test that the workers are running
 func TestNewWorkerPool(t *testing.T) {
 	noOfWorkers := 4
-	bufferSize := 50
+	bufferSize := 1
 	pool := NewWorkerPool(noOfWorkers, bufferSize)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 }
 
+// Stop an empty pool, test that the workers hav e been stopped
+// and try to enqueue work after stopping
 func TestStop(t *testing.T) {
 	noOfWorkers := 4
 	bufferSize := 50
@@ -49,6 +61,30 @@ func TestStop(t *testing.T) {
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	pool.Stop()
 	assert.EqualValues(t, 0, pool.workersRunning)
+	err := pool.QueueJob(nil)
+	if err != nil {
+		log.Println("Queue has been closed")
+	}
+	assert.NotNil(t, err)
+}
+
+// Call stop twice and make sure this does not panic (b/o
+// closed channel
+func TestDoubleStop(t *testing.T) {
+	noOfWorkers := 4
+	bufferSize := 50
+	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+	pool.Stop()
+	assert.EqualValues(t, 0, pool.workersRunning)
+	err := pool.QueueJob(nil)
+	if err != nil {
+		log.Println("Queue has been closed")
+	}
+	assert.NotNil(t, err)
+	assert.NotPanics(t, func() {
+		pool.Stop()
+	})
 }
 
 func TestClose(t *testing.T) {
@@ -56,9 +92,38 @@ func TestClose(t *testing.T) {
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
 	pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 0, pool.workersRunning)
+
+	err := pool.QueueJob(nil)
+	if err != nil {
+		log.Println("Queue has been closed")
+	}
+	assert.NotNil(t, err)
+}
+
+func TestDoubleClose(t *testing.T) {
+	noOfWorkers := 4
+	bufferSize := 50
+	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+	pool.Close()
+	pool.Close()
+	pool.waitGroup.Wait()
+	assert.EqualValues(t, 0, pool.workersRunning)
+}
+
+func TestShutdown(t *testing.T) {
+	noOfWorkers := 4
+	bufferSize := 50
+	pool := NewWorkerPool(noOfWorkers, bufferSize)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+	pool.Shutdown()
+	job, done := pool.GetFinished()
+	assert.True(t, done)
+	assert.Nil(t, job)
 }
 
 func TestGetFinished(t *testing.T) {
@@ -79,7 +144,7 @@ func TestGetFinishedWait(t *testing.T) {
 	go func() {
 		time.Sleep(2 * time.Second)
 		fmt.Printf("Stopping worker pool\n")
-		pool.Stop()
+		pool.Shutdown()
 	}()
 	job, done := pool.GetFinishedWait()
 	assert.True(t, done)
@@ -102,6 +167,13 @@ func TestQueueOne(t *testing.T) {
 	if err != nil {
 		log.Println("could not add job")
 	}
+
+	go func() {
+		time.Sleep(2 * time.Second)
+		fmt.Printf("Stopping worker pool\n")
+		pool.Shutdown()
+	}()
+
 	pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 1, pool.FinishedJobs())
@@ -164,10 +236,4 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 
 	pool.Close()
 	assert.EqualValues(t, bufferSize, count)
-}
-
-func TestStressTest(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		t.Run("Stress", TestWorkerPool_GetFinished)
-	}
 }
