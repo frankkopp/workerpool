@@ -1,4 +1,28 @@
-package WorkerPool
+/*
+ * MIT License
+ *
+ * Copyright (c) 2020 Frank Kopp
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package workerpool
 
 import (
 	"fmt"
@@ -215,7 +239,8 @@ func TestQueueOne(t *testing.T) {
 }
 
 // Stress tests
-func _TestStressQueueMany(t *testing.T) {
+func TestStressQueueMany(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
 		t.Run("Stress", TestQueueMany)
@@ -249,17 +274,18 @@ func TestQueueMany(t *testing.T) {
 	assert.EqualValues(t, bufferSize, pool.FinishedJobs())
 }
 
-func _TestStressTestWorkerPool_GetFinished(t *testing.T) {
+func TestStressTestWorkerPoolGetFinished(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_GetFinished)
+		t.Run("Stress", TestWorkerPoolGetFinished)
 	}
 }
 
 // Create several WorkPackages (Job) and add/enqueue them to the pool.
 // Retrieve finished jobs and compare number of jobs enqueued
 // and retrieved.
-func TestWorkerPool_GetFinished(t *testing.T) {
+func TestWorkerPoolGetFinished(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU()*2 - 2
 	bufferSize := 50
@@ -300,10 +326,11 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 	assert.EqualValues(t, bufferSize, count)
 }
 
-func _TestStressWorkerPool_Consumer(t *testing.T) {
+func TestStressWorkerPoolConsumer(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_Consumer)
+		t.Run("Stress", TestWorkerPoolConsumer)
 	}
 }
 
@@ -312,7 +339,7 @@ func _TestStressWorkerPool_Consumer(t *testing.T) {
 // Producer is much faster.
 // When closed number of enqueued jobs need to match
 // the retrieved number of jobs.
-func TestWorkerPool_Consumer(t *testing.T) {
+func TestWorkerPoolConsumer(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 50
@@ -371,16 +398,17 @@ func TestWorkerPool_Consumer(t *testing.T) {
 	pool.waitGroup.Wait()
 }
 
-func _TestStressWorkerPool_Loop2(t *testing.T) {
+func TestStressWorkerPoolLoop2(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_Loop2)
+		t.Run("Stress", TestWorkerPoolLoop2)
 	}
 }
 
 // This uses a separate consumer  and producer thread to
 // create and retrieve jobs. Producer is much slower
-func TestWorkerPool_Loop2(t *testing.T) {
+func TestWorkerPoolLoop2(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 100
@@ -441,17 +469,18 @@ func TestWorkerPool_Loop2(t *testing.T) {
 	pool.waitGroup.Wait()
 }
 
-func _TestStressWorkerPool_Two(t *testing.T) {
+func TestStressWorkerPoolTwo(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_Two)
+		t.Run("Stress", TestWorkerPoolTwo)
 	}
 }
 
 // This uses two separate consumer threads to read results
 // and a timer to close the WorkerPool.
 // It also uses two producers
-func TestWorkerPool_Two(t *testing.T) {
+func TestWorkerPoolTwo(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 100
@@ -556,7 +585,7 @@ func TestWorkerPool_Two(t *testing.T) {
 }
 
 // Two producers. Finished jobs are ignored.
-func TestWorkerPool_ProduceOnly(t *testing.T) {
+func TestWorkerPoolProduceOnly(t *testing.T) {
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 1000
 	pool := NewWorkerPool(noOfWorkers, bufferSize, false)
@@ -615,92 +644,4 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 	}()
 
 	pool.waitGroup.Wait()
-}
-
-func TestWorkerPool_QueueJob(t *testing.T) {
-	noOfWorkers := 2
-	bufferSize := 5
-	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
-
-	// Timed stop routine
-	go func() {
-		time.Sleep(6500 * time.Millisecond)
-		fmt.Println("Stop =======================")
-		err := pool.Stop()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	// Timed retrieval routine
-	go func() {
-		time.Sleep(5 * time.Second)
-		for i := 0; ; {
-			getFinishedWait, done := pool.GetFinishedWait()
-			if done {
-				fmt.Println("WorkerPool finished queue closed")
-				break
-			}
-			if getFinishedWait != nil {
-				i++
-				fmt.Println("Waiting : ", len(pool.jobs))
-				fmt.Println("Working : ", pool.working)
-				fmt.Println("Finished: ", len(pool.finished))
-				fmt.Println("Received: ", i)
-				fmt.Println("Result  : ", getFinishedWait.(*WorkPackage).result, " === ")
-				fmt.Println()
-			}
-		}
-		fmt.Println()
-	}()
-
-	// Adding jobs
-	for i := 1; i <= 25; i++ {
-		job := &WorkPackage{
-			jobID:  i,
-			f:      10000000.0,
-			div:    1.0000001,
-			result: 0,
-		}
-		err := pool.QueueJob(job)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println("Added: ", i, "Waiting: ", len(pool.jobs))
-	}
-	fmt.Println()
-
-	// Close queue
-	fmt.Println("Close Queue")
-	err := pool.Close()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println()
-
-	// Try adding to closed queue
-	for i := 0; i < 10; i++ {
-		job := &WorkPackage{
-			jobID:  i + 10,
-			f:      10000000.0,
-			div:    1.0000001,
-			result: 0,
-		}
-		err := pool.QueueJob(job)
-		if err != nil {
-			fmt.Println(err)
-			break
-		}
-	}
-	fmt.Println("Waiting: ", len(pool.jobs))
-	fmt.Println()
-
-	// Try closing a second time
-	fmt.Println("Close Queue second time")
-	err = pool.Close()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println()
-
 }

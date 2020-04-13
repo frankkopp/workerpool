@@ -1,4 +1,4 @@
-module github.com/frankkopp/FrankyGo
+module github.com/frankkopp/workerpool
 
 go 1.14
 
