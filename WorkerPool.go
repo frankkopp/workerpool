@@ -1,10 +1,12 @@
 package WorkerPool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 )
 
 const debug = false
@@ -22,7 +24,7 @@ type Job interface {
 type WorkerPool struct {
 	waitGroup      sync.WaitGroup
 	noOfWorkers    int
-	workersRunning int
+	workersRunning int32
 
 	// number of job in progress
 	// TODO: this is not transactional - there is a gap between
@@ -37,9 +39,11 @@ type WorkerPool struct {
 	bufferSize int
 	jobs       chan Job
 	finished   chan Job
-	stop       chan bool
 	closed     chan bool
 	closedFlag bool
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewWorkerPool creates a new WorkerPool and immediately
@@ -48,6 +52,8 @@ type WorkerPool struct {
 // there can be bufferSize jobs queued before the channel
 // blocks the queuing side to wait for free queue space
 func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerPool {
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	pool := &WorkerPool{
 		waitGroup:      sync.WaitGroup{},
@@ -58,18 +64,20 @@ func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerP
 		bufferSize:     bufferSize,
 		jobs:           make(chan Job, bufferSize),
 		finished:       make(chan Job, bufferSize),
-		stop:           make(chan bool),
 		closed:         make(chan bool),
 		closedFlag:     false,
+
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
+	// start workers
 	for i := 1; i <= pool.noOfWorkers; i++ {
-		pool.waitGroup.Add(1)
-		pool.workersRunning++
-		go pool.worker(i)
+		go pool.worker(ctx, i)
 	}
 
-	for pool.workersRunning < pool.noOfWorkers {
+	// wait until all workers are running
+	for int(atomic.LoadInt32(&pool.workersRunning)) < pool.noOfWorkers {
 	}
 
 	return pool
@@ -116,9 +124,11 @@ func (pool *WorkerPool) Stop() (err error) {
 	// when a worker is running a job this will stop
 	// after completion of this job.
 	// loop until all workers have stopped
-	pool.stop <- true
+	pool.cancel()
 	// close the input queue to not accept any more jobs
 	close(pool.jobs)
+	// wait until all workers are terminated
+	pool.waitGroup.Wait()
 	return nil
 }
 
@@ -148,16 +158,20 @@ func (pool *WorkerPool) GetFinished() (Job, bool) {
 	if !pool.queueFinished {
 		return nil, true
 	}
+
+	// when all workers are stopped and the finished jobs
+	// queue is empty we can return immediately and tell
+	// the caller, that this WorkerPool is done.
+	if atomic.LoadInt32(&pool.workersRunning) == 0 && pool.FinishedJobs() == 0 {
+		return nil, true
+	}
+
 	// Try to get a finished job to return.
 	// If channel is closed return nil and signal closed.
 	// Or return the job (might be nil as well at) but
 	// signal "not closed"
 	select {
-	case _, ok := <-pool.stop:
-		if !ok {
-			return nil, true
-		}
-		pool.stop <- true
+	case <-pool.ctx.Done():
 		return nil, true
 	case job, ok := <-pool.finished:
 		if !ok { // channel closed
@@ -182,14 +196,19 @@ func (pool *WorkerPool) GetFinishedWait() (Job, bool) {
 	if !pool.queueFinished {
 		return nil, true
 	}
+
+	// when all workers are stopped and the finished jobs
+	// queue is empty we can return immediately and tell
+	// the caller, that this WorkerPool is done.
+	if atomic.LoadInt32(&pool.workersRunning) == 0 && pool.FinishedJobs() == 0 {
+		return nil, true
+	}
+
 	// try getting a finished job or wait until one
-	// is available or the channel is closed
+	// is available or the channel is closed or the
+	// WorkerPool has been closed.
 	select {
-	case _, ok := <-pool.stop:
-		if !ok {
-			return nil, true
-		}
-		pool.stop <- true
+	case <-pool.ctx.Done():
 		return nil, true
 	case job, ok := <-pool.finished:
 		if !ok {
@@ -197,6 +216,70 @@ func (pool *WorkerPool) GetFinishedWait() (Job, bool) {
 		}
 		return job, false
 	}
+}
+
+// ///////////////////////////////
+// Worker
+func (pool *WorkerPool) worker(ctx context.Context, id int) {
+	pool.waitGroup.Add(1)
+	atomic.AddInt32(&pool.workersRunning, 1)
+	// make sure to tell the wait group you're done
+	// and decrease the workersRunning counter.
+	// Unfortunately WaitGroup does not has external
+	// access to its counters
+	defer func() {
+		atomic.AddInt32(&pool.workersRunning, -1)
+		pool.waitGroup.Done()
+		if debug {
+			fmt.Printf("Worker %d shutting down\n", id)
+		}
+	}()
+
+	for { // loop for querying incoming jobs or stop signal
+		select {
+		case <-ctx.Done():
+			return
+		case job, ok := <-pool.jobs: // check if a job is available
+			// channel close and empty
+			if !ok {
+				return
+			}
+			// ignore nil jobs when the channel is not closed
+			if job == nil {
+				continue
+			}
+
+			// TODO: this is not transactional - there is a gap between
+			//  Waiting Jobs and working as I do not know a good way
+			//  to synchronize <- channel reads
+			pool.working++
+
+			// fmt.Printf("Worker %d started job: %s\n", id, job.Id())
+
+			// Run the job by calling its Run() function
+			// Real error handling needs to be done in the
+			// job's Run() itself and stored into the Job
+			// instance.
+			// IDEA: Use another channel/queue for failed job's?
+			err := job.Run()
+			if err != nil {
+				log.Printf("Error in job %s: %s\n", job.Id(), err)
+			}
+
+			// storing the job in the finished queue
+			// if the finished channel is full this waits here until
+			// it either is emptied by another thread or the stop signal
+			// is received
+			if pool.queueFinished {
+				select {
+				case <-ctx.Done():
+					return
+				case pool.finished <- job:
+					pool.working--
+				}
+			}
+		} // select
+	} // for
 }
 
 // WaitingJobs returns the number of not yet started jobs
@@ -234,74 +317,4 @@ func (pool *WorkerPool) Jobs() int {
 // Active return true if the WorkPool workers are still active
 func (pool *WorkerPool) Active() bool {
 	return pool.workersRunning > 0
-}
-
-// ///////////////////////////////
-// Worker
-func (pool *WorkerPool) worker(id int) {
-	// make sure to tell the wait group you're done
-	// and decrease the workersRunning counter.
-	// Unfortunately WaitGroup does not has external
-	// access to its counters
-	defer func() {
-		pool.workersRunning--
-		pool.waitGroup.Done()
-		// last one turns the light out
-		if pool.workersRunning == 0 {
-			close(pool.finished)
-		}
-		fmt.Printf("Worker %d is shutting down\n", id)
-	}()
-
-	if debug {
-		fmt.Printf("Worker %d started\n", id)
-	}
-
-	for { // loop for querying incoming jobs or stop signal
-		select {
-		case <-pool.stop: // check for a stop signal
-			pool.stop <- true
-			return
-		case job, ok := <-pool.jobs: // check if a job is available
-			// channel close and empty
-			if !ok {
-				return
-			}
-			// ignore nil jobs when the channel is not closed
-			if job == nil {
-				continue
-			}
-
-			// TODO: this is not transactional - there is a gap between
-			//  Waiting Jobs and working as I do not know a good way
-			//  to synchronize <- channel reads
-			pool.working++
-
-			// fmt.Printf("Worker %d started job: %s\n", id, job.Id())
-
-			// Run the job by calling its Run() function
-			// Real error handling needs to be done in the
-			// job's Run() itself and stored into the Job
-			// instance.
-			// IDEA: Use another channel/queue for failed job's?
-			err := job.Run()
-			if err != nil {
-				log.Printf("Error in job %s: %s\n", job.Id(), err)
-			}
-
-			// storing the job in the finished queue
-			// if the finished channel is full this waits here until
-			// it either is emptied by another thread or the stop signal
-			// is received
-			if pool.queueFinished {
-				select {
-				case pool.finished <- job:
-					pool.working--
-				case <-pool.stop:
-					pool.stop <- true
-					return
-				}
-			}
-		} // select
-	} // for
 }

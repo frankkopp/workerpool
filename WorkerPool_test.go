@@ -71,14 +71,12 @@ func TestStop(t *testing.T) {
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
-	pool.Stop()
+	_ = pool.Stop()
 	assert.EqualValues(t, 0, pool.workersRunning)
 
 	err := pool.QueueJob(nil)
 	if err != nil {
-		if debug {
-			log.Println("Queue has been closed")
-		}
+		log.Println("Queue has been closed")
 	}
 	assert.NotNil(t, err)
 }
@@ -91,7 +89,7 @@ func TestDoubleStop(t *testing.T) {
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
-	pool.Stop()
+	_ = pool.Stop()
 	assert.EqualValues(t, 0, pool.workersRunning)
 	err := pool.QueueJob(nil)
 	if err != nil {
@@ -101,7 +99,7 @@ func TestDoubleStop(t *testing.T) {
 	}
 	assert.NotNil(t, err)
 	assert.NotPanics(t, func() {
-		pool.Stop()
+		_ = pool.Stop()
 	})
 }
 
@@ -114,15 +112,13 @@ func TestClose(t *testing.T) {
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 0, pool.workersRunning)
 
 	err := pool.QueueJob(nil)
 	if err != nil {
-		if debug {
 			log.Println("Queue has been closed")
-		}
 	}
 	assert.NotNil(t, err)
 }
@@ -134,10 +130,12 @@ func TestDoubleClose(t *testing.T) {
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
-	pool.Close()
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 0, pool.workersRunning)
+	assert.NotPanics(t, func() {
+		_ = pool.Close()
+	})
 }
 
 // Shutdown empty pool and try to get finished job. Test
@@ -149,7 +147,7 @@ func TestShutdown(t *testing.T) {
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
-	pool.Shutdown()
+	_ = pool.Shutdown()
 	job, done := pool.GetFinished()
 	assert.True(t, done)
 	assert.Nil(t, job)
@@ -185,7 +183,7 @@ func TestGetFinishedWait(t *testing.T) {
 			fmt.Printf("Stopping worker pool\n")
 		}
 		timeout = true
-		pool.Shutdown()
+		_ = pool.Shutdown()
 	}()
 	job, done := pool.GetFinishedWait()
 	assert.True(t, timeout)
@@ -209,11 +207,9 @@ func TestQueueOne(t *testing.T) {
 	}
 	err := pool.QueueJob(job)
 	if err != nil {
-		if debug {
 			log.Println("could not add job")
-		}
 	}
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 1, pool.FinishedJobs())
 }
@@ -237,8 +233,8 @@ func TestQueueMany(t *testing.T) {
 	for i := 1; i <= bufferSize; i++ {
 		job := &WorkPackage{
 			jobID:  i,
-			f:      10000000.0,
-			div:    1.0000001,
+			f:      1000000.0,
+			div:    1.000001,
 			result: 0,
 		}
 		err := pool.QueueJob(job)
@@ -248,9 +244,16 @@ func TestQueueMany(t *testing.T) {
 			}
 		}
 	}
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, bufferSize, pool.FinishedJobs())
+}
+
+func _TestStressTestWorkerPool_GetFinished(t *testing.T) {
+	t.Parallel()
+	for i := 0; i < 100; i++ {
+		t.Run("Stress", TestWorkerPool_GetFinished)
+	}
 }
 
 // Create several WorkPackages (Job) and add/enqueue them to the pool.
@@ -265,8 +268,8 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 	for i := 1; i <= bufferSize; i++ {
 		job := &WorkPackage{
 			jobID:  i,
-			f:      10000000.0,
-			div:    1.0000001,
+			f:      100000.0,
+			div:    1.00001,
 			result: 0,
 		}
 		err := pool.QueueJob(job)
@@ -276,22 +279,24 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 			}
 		}
 	}
+
+	_ = pool.Close()
+
 	count := 0
-	done := false
-	var job Job
-	for pool.HasJobs() {
-		job, done = pool.GetFinished()
+	for {
+		job, done := pool.GetFinished()
+		if done {
+			break
+		}
 		if job != nil {
 			if debug {
 				fmt.Printf("Result: %s\n", job.(*WorkPackage).result)
 			}
 			count++
 		}
-		if done {
-			break
-		}
+		runtime.Gosched()
 	}
-	pool.Close()
+
 	assert.EqualValues(t, bufferSize, count)
 }
 
@@ -310,13 +315,13 @@ func _TestStressWorkerPool_Consumer(t *testing.T) {
 func TestWorkerPool_Consumer(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
-	bufferSize := 100
+	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	go func() {
 		time.Sleep(5 * time.Second)
-		pool.Close()
+		_ = pool.Close()
 	}()
 
 	produced := 0
@@ -345,8 +350,8 @@ func TestWorkerPool_Consumer(t *testing.T) {
 	for {
 		job := &WorkPackage{
 			jobID:  produced,
-			f:      1000000.0,
-			div:    1.000001,
+			f:      100000.0,
+			div:    1.00001,
 			result: 0,
 		}
 		if debug {
@@ -362,7 +367,7 @@ func TestWorkerPool_Consumer(t *testing.T) {
 		produced++
 	}
 
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 }
 
@@ -384,7 +389,7 @@ func TestWorkerPool_Loop2(t *testing.T) {
 
 	go func() {
 		time.Sleep(5 * time.Second)
-		pool.Close()
+		_ = pool.Close()
 	}()
 
 	consumed := 0
@@ -415,8 +420,8 @@ func TestWorkerPool_Loop2(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		job := &WorkPackage{
 			jobID:  produced,
-			f:      1000000.0,
-			div:    1.000001,
+			f:      100000.0,
+			div:    1.00001,
 			result: 0,
 		}
 		if debug {
@@ -432,7 +437,7 @@ func TestWorkerPool_Loop2(t *testing.T) {
 		produced++
 	}
 
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 }
 
@@ -455,7 +460,7 @@ func TestWorkerPool_Two(t *testing.T) {
 
 	go func() {
 		time.Sleep(5 * time.Second)
-		pool.Close()
+		_ = pool.Close()
 	}()
 
 	consumed := int32(0)
@@ -502,8 +507,8 @@ func TestWorkerPool_Two(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		job := &WorkPackage{
 			jobID:  int(atomic.LoadInt32(&produced)),
-			f:      1000000.0,
-			div:    1.000001,
+			f:      100000.0,
+			div:    1.00001,
 			result: 0,
 		}
 		if debug {
@@ -541,7 +546,7 @@ func TestWorkerPool_Two(t *testing.T) {
 		atomic.AddInt32(&produced, 1)
 	}
 
-	pool.Close()
+	_ = pool.Close()
 	pool.waitGroup.Wait()
 	for pool.Active() || pool.FinishedJobs() > 0 {
 	}
@@ -558,8 +563,8 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
 	go func() {
-		time.Sleep(30 * time.Second)
-		pool.Close()
+		time.Sleep(10 * time.Second)
+		_ = pool.Close()
 	}()
 
 	i := int32(0)
@@ -569,8 +574,8 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 			atomic.AddInt32(&i, 1)
 			job := &WorkPackage{
 				jobID:  int(i),
-				f:      10000000.0,
-				div:    1.0000001,
+				f:      1000000.0,
+				div:    1.000001,
 				result: 0,
 			}
 			if debug {
@@ -614,9 +619,42 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 
 func TestWorkerPool_QueueJob(t *testing.T) {
 	noOfWorkers := 2
-	bufferSize := 1000
+	bufferSize := 5
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 
+	// Timed stop routine
+	go func() {
+		time.Sleep(6500 * time.Millisecond)
+		fmt.Println("Stop =======================")
+		err := pool.Stop()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	// Timed retrieval routine
+	go func() {
+		time.Sleep(5 * time.Second)
+		for i := 0; ; {
+			getFinishedWait, done := pool.GetFinishedWait()
+			if done {
+				fmt.Println("WorkerPool finished queue closed")
+				break
+			}
+			if getFinishedWait != nil {
+				i++
+				fmt.Println("Waiting : ", len(pool.jobs))
+				fmt.Println("Working : ", pool.working)
+				fmt.Println("Finished: ", len(pool.finished))
+				fmt.Println("Received: ", i)
+				fmt.Println("Result  : ", getFinishedWait.(*WorkPackage).result, " === ")
+				fmt.Println()
+			}
+		}
+		fmt.Println()
+	}()
+
+	// Adding jobs
 	for i := 1; i <= 25; i++ {
 		job := &WorkPackage{
 			jobID:  i,
@@ -632,14 +670,15 @@ func TestWorkerPool_QueueJob(t *testing.T) {
 	}
 	fmt.Println()
 
+	// Close queue
 	fmt.Println("Close Queue")
 	err := pool.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	fmt.Println()
 
+	// Try adding to closed queue
 	for i := 0; i < 10; i++ {
 		job := &WorkPackage{
 			jobID:  i + 10,
@@ -654,41 +693,14 @@ func TestWorkerPool_QueueJob(t *testing.T) {
 		}
 	}
 	fmt.Println("Waiting: ", len(pool.jobs))
-
 	fmt.Println()
 
+	// Try closing a second time
 	fmt.Println("Close Queue second time")
 	err = pool.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	fmt.Println()
 
-	go func() {
-		time.Sleep(1500 * time.Millisecond)
-		fmt.Println("Stop =======================")
-		err = pool.Stop()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	for i := 0; ; {
-		getFinishedWait, done := pool.GetFinishedWait()
-		if done {
-			fmt.Println("WorkerPool finished queue closed")
-			break
-		}
-		if getFinishedWait != nil {
-			i++
-			fmt.Println("Waiting : ", len(pool.jobs))
-			fmt.Println("Working : ", pool.working)
-			fmt.Println("Finished: ", len(pool.finished))
-			fmt.Println("Received: ", i)
-			fmt.Println("Result  : ", getFinishedWait.(*WorkPackage).result, " === ")
-			fmt.Println()
-		}
-	}
-	fmt.Println()
 }
