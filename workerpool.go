@@ -39,8 +39,8 @@ import (
 
 const debug = false
 
-// Job
-// This interface needs to be satisfied for the WorkerPool Queue
+// Job is the interface that needs to be satisfied
+// for workerpool jobs
 type Job interface {
 	Run() error
 	Id() string
@@ -331,6 +331,10 @@ func (pool *WorkerPool) HasJobs() bool {
 }
 
 // Jobs returns the total number of Jobs in the WorkerPool
+// Obs:
+//  This is not transactional - there is a gap between
+//	waiting jobs and working jobs as I do not know a good way
+//	to synchronize <-channel reads yet
 func (pool *WorkerPool) Jobs() int {
 	// TODO: this is not transactional - there is a gap between
 	//  Waiting Jobs and working as I do not know a good way
