@@ -573,10 +573,14 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 				div:    1.0000001,
 				result: 0,
 			}
-			fmt.Printf("P1 adds job: %d\n", i)
+			if debug {
+				fmt.Printf("P1 adds job: %d\n", i)
+			}
 			err := pool.QueueJob(job)
 			if err != nil {
-				log.Println("could not add job")
+				if debug {
+					log.Println("could not add job")
+				}
 				break
 			}
 		}
@@ -592,10 +596,14 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 				div:    1.000001,
 				result: 0,
 			}
-			fmt.Printf("P2 adds job: %d\n", i)
+			if debug {
+				fmt.Printf("P2 adds job: %d\n", i)
+			}
 			err := pool.QueueJob(job)
 			if err != nil {
-				log.Println("could not add job")
+				if debug {
+					log.Println("could not add job")
+				}
 				break
 			}
 		}

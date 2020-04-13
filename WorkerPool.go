@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const debug = true
+const debug = false
 
 // Job
 // This interface needs to be satisfied for the WorkerPool Queue
