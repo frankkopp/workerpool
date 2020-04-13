@@ -31,7 +31,7 @@ import (
 	"strconv"
 	"time"
 
-	. "github.com/frankkopp/workerpool"
+	"github.com/frankkopp/workerpool"
 )
 
 // WorkPackage todo
@@ -42,10 +42,12 @@ type WorkPackage struct {
 	div    float64
 }
 
+// Id identification of the work package
 func (w *WorkPackage) Id() string {
 	return strconv.Itoa(w.JobID)
 }
 
+// Run will be executed by workerpool
 func (w *WorkPackage) Run() error {
 	startTime := time.Now()
 		fmt.Println("Working...")
@@ -62,7 +64,7 @@ func (w *WorkPackage) Run() error {
 func main() {
 	noOfWorkers := 2
 	bufferSize := 5
-	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
+	pool := workerpool.NewWorkerPool(noOfWorkers, bufferSize, true)
 
 	// Timed stop routine
 	go func() {
