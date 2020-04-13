@@ -1,6 +1,8 @@
 # WorkerPool
 A WorkerPool Implementation in GO
 
+Status: Version 1.0 in Development
+
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
 
 A common problem of parallel computing in high performance applications is the cost of starting new parallel threads.
@@ -30,11 +32,11 @@ This Worker Pool shall fulfill the following requirements.
     * start and complete all jobs already in the job queue - OK
     * keep finished queue (channel) open - OK
     * ignore multiple calls to close - OK
-    * be stoppable (skipp all remaining queued jobs) - TODO/TEST
+    * be stoppable (skipp all remaining queued jobs) - OK
 * Allow shutdown - OK
     * Stop the WorkerPool - OK
     * prevent further reading from the finished queue - OK
-    * wake (unblock) already waiting readers - TODO/TEST
+    * wake (unblock) already waiting readers - OK
 * Allow queuing of jobs - OK
     * if the job queue still has capacity return immediately - OK
     * if the job queue is full, block the caller until a slot is free - OK
@@ -49,7 +51,7 @@ This Worker Pool shall fulfill the following requirements.
             * E.g. if the job queue is closed but there are still jobs in progress ==> false
             * E.g. if the job queue is closed and there are no more jobs in progress ==> true
     * In case of blocking:
-        * wait until a finished job becomes available if the WorkPool is still able to produce finished jobs - TODO/TEST
+        * wait until a finished job becomes available if the WorkPool is still able to produce finished jobs - OK
             * E.g. the job queue is not closed
             * E.g. the job queue is closed but there are still jobs in progress
         * unblock and return nil if the job queue is closed and there are no more jobs in progress
@@ -67,10 +69,10 @@ This Worker Pool shall fulfill the following requirements.
         * this is somewhat tricky with GO and interfaces
 
 ## Challenges so far:
-* avoid busy polling loops
-    * TODO: ok for processing - not OK for stop and close - needed loop there
+* avoid busy polling loops - OK 
+    * context.Context WithCancel was the solution.
 * how to interrupt / wake up a read from a channel?
-    * not possible - use select or dummy signal (nil)
+    * using select and contect with cancel (Done()) 
 * WaitGroup does not give access to its counter - so a separate counter is necessary to see how many workers are still running
     * no better solution found yet
 * how to interrupt or even kill a go routine which is running
