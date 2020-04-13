@@ -1,6 +1,8 @@
 # WorkerPool
 A WorkerPool Implementation in GO
 
+Status: Version 1.0 in Development
+
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
 
 A common problem of parallel computing in high performance applications is the cost of starting new parallel threads.
@@ -68,9 +70,9 @@ This Worker Pool shall fulfill the following requirements.
 
 ## Challenges so far:
 * avoid busy polling loops
-    * TODO: ok for processing - not OK for stop and close - needed loop there
+    * TODO: for closing/stopping a loop is currently used
 * how to interrupt / wake up a read from a channel?
-    * not possible - use select or dummy signal (nil)
+    * not possible? - use select or dummy signal (nil)
 * WaitGroup does not give access to its counter - so a separate counter is necessary to see how many workers are still running
     * no better solution found yet
 * how to interrupt or even kill a go routine which is running

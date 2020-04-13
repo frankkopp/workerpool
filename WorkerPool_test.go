@@ -611,3 +611,84 @@ func TestWorkerPool_ProduceOnly(t *testing.T) {
 
 	pool.waitGroup.Wait()
 }
+
+func TestWorkerPool_QueueJob(t *testing.T) {
+	noOfWorkers := 2
+	bufferSize := 1000
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
+
+	for i := 1; i <= 25; i++ {
+		job := &WorkPackage{
+			jobID:  i,
+			f:      10000000.0,
+			div:    1.0000001,
+			result: 0,
+		}
+		err := pool.QueueJob(job)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("Added: ", i, "Waiting: ", len(pool.jobs))
+	}
+	fmt.Println()
+
+	fmt.Println("Close Queue")
+	err := pool.Close()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println()
+
+	for i := 0; i < 10; i++ {
+		job := &WorkPackage{
+			jobID:  i + 10,
+			f:      10000000.0,
+			div:    1.0000001,
+			result: 0,
+		}
+		err := pool.QueueJob(job)
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+	}
+	fmt.Println("Waiting: ", len(pool.jobs))
+
+	fmt.Println()
+
+	fmt.Println("Close Queue second time")
+	err = pool.Close()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println()
+
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		fmt.Println("Stop =======================")
+		err = pool.Stop()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	for i := 0; ; {
+		getFinishedWait, done := pool.GetFinishedWait()
+		if done {
+			fmt.Println("WorkerPool finished queue closed")
+			break
+		}
+		if getFinishedWait != nil {
+			i++
+			fmt.Println("Waiting : ", len(pool.jobs))
+			fmt.Println("Working : ", pool.working)
+			fmt.Println("Finished: ", len(pool.finished))
+			fmt.Println("Received: ", i)
+			fmt.Println("Result  : ", getFinishedWait.(*WorkPackage).result, " === ")
+			fmt.Println()
+		}
+	}
+	fmt.Println()
+}
