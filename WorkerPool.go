@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+const debug = false
+
 // Job
 // This interface needs to be satisfied for the WorkerPool Queue
 type Job interface {
@@ -59,7 +61,9 @@ func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerP
 		closedFlag:     false,
 	}
 
-	fmt.Printf("Starting %d workers\n", pool.noOfWorkers)
+	if debug {
+		fmt.Printf("Starting %d workers\n", pool.noOfWorkers)
+	}
 	for i := 1; i <= pool.noOfWorkers; i++ {
 		pool.waitGroup.Add(1)
 		pool.workersRunning++
@@ -73,19 +77,10 @@ func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerP
 // If the queue is full this blocks until a worker has taken a job from the
 // queue
 func (wp *WorkerPool) QueueJob(r Job) (err error) {
-	// to gracefully protect against the panic
-	// when the jobs channel is closed
-	defer func() {
-		if recover() != nil {
-			err = errors.New("not accepting new jobs as the WorkerPool queue is closed")
-		}
-	}()
-
 	if wp.closedFlag {
 		err = errors.New("not accepting new jobs as the WorkerPool queue is closed")
-		return
+		return err
 	}
-
 	// add the job to the queue or wait until the queue has space
 	wp.jobs <- r
 	return nil
@@ -101,8 +96,9 @@ func (wp *WorkerPool) Close() {
 	if wp.closedFlag {
 		return
 	}
-
-	fmt.Printf("Closing WorkerPool. Finishing %d jobs\n", len(wp.jobs))
+	if debug {
+		fmt.Printf("Closing WorkerPool. Finishing %d jobs\n", len(wp.jobs))
+	}
 	// Set the closed flag so no new jobs are accepted.
 	// Then close the channel
 	wp.closedFlag = true
@@ -135,7 +131,10 @@ func (wp *WorkerPool) Stop() {
 		recover()
 	}()
 
-	fmt.Printf("Stopping WorkerPool. Skipping %d jobs\n", len(wp.jobs))
+	if debug {
+		fmt.Printf("Stopping WorkerPool. Skipping %d jobs\n", len(wp.jobs))
+	}
+
 	// Set the closed flag so no new jobs are accepted.
 	wp.closedFlag = true
 
@@ -177,22 +176,23 @@ func (wp *WorkerPool) GetFinished() (Job, bool) {
 	if !wp.queueFinished {
 		return nil, true
 	}
-	// try to get a finished job to return.
-	// if no finished jobs are available check if any
-	// workers are still running.
+	// Try to get a finished job to return.
+	// If channel is closed return nil and signal closed
+	// of return the job (might be nil as well at) but
+	// signal "not closed"
 	select {
 	case job, ok := <-wp.finished:
-		if ok {
-			fmt.Println("succeeded to get result", job.Id())
+		if !ok { // channel closed
+			return nil, true
+		} else { // channel not closed return result
+			if debug {
+				fmt.Println("succeeded to get result", job.Id())
+			}
 			return job, false
 		}
-		return nil, true
 	default:
-		if wp.workersRunning == 0 {
-			return nil, true
-		}
+		return nil, false
 	}
-	return nil, false
 }
 
 // GetFinishedWait returns finished jobs if any available
@@ -209,14 +209,22 @@ func (wp *WorkerPool) GetFinishedWait() (Job, bool) {
 	// try to get a finished job to return.
 	// if no finished job available check if any
 	// workers are still running.
+	// TODO improve this without busy wait
 	for {
 		select {
 		case job, ok := <-wp.finished:
-			if ok {
-				fmt.Println("succeeded to get result", job.Id())
+			if !ok {
+				if wp.workersRunning == 0 && len(wp.finished) == 0 {
+					return nil, true
+				}
+			} else {
+				if debug {
+					fmt.Println("succeeded to get result", job.Id())
+				}
 				return job, false
 			}
-			return nil, true
+		default:
+			runtime.Gosched()
 		}
 	}
 }
@@ -233,6 +241,7 @@ func (wp *WorkerPool) FinishedJobs() int {
 
 // InProgress returns the number of jobs currently running
 func (wp *WorkerPool) InProgress() int {
+	// TODO: this is not transactional
 	return wp.working
 }
 
@@ -244,7 +253,13 @@ func (wp *WorkerPool) HasJobs() bool {
 
 // Jobs returns the total number of Jobs in the WorkerPool
 func (wp *WorkerPool) Jobs() int {
+	// TODO: this is not transactional
 	return wp.working + len(wp.finished) + len(wp.jobs)
+}
+
+// WorkersActive return true if the WorkPool workers are still active
+func (wp *WorkerPool) WorkersActive() bool {
+	return wp.workersRunning > 0
 }
 
 // ///////////////////////////////
@@ -257,10 +272,14 @@ func worker(wp *WorkerPool, id int) {
 	defer func() {
 		wp.workersRunning--
 		wp.waitGroup.Done()
-		fmt.Printf("Worker %d is shutting down\n", id)
+		if debug {
+			fmt.Printf("Worker %d is shutting down\n", id)
+		}
 	}()
 
-	fmt.Printf("Worker %d started\n", id)
+	if debug {
+		fmt.Printf("Worker %d started\n", id)
+	}
 
 	for { // loop for querying incoming jobs or stop signal
 		select {
@@ -272,7 +291,9 @@ func worker(wp *WorkerPool, id int) {
 			// TODO: this is not transactional
 			wp.working++
 
-			fmt.Printf("Worker %d started job: %s\n", id, job.Id())
+			if debug {
+				fmt.Printf("Worker %d started job: %s\n", id, job.Id())
+			}
 
 			// run the job by calling its Run() function
 			if err := job.Run(); err != nil {
