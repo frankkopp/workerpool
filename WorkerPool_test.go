@@ -324,7 +324,7 @@ func TestWorkerPool_Consumer(t *testing.T) {
 
 	// consumer
 	go func() {
-		for pool.WorkersActive() || pool.FinishedJobs() > 0 {
+		for pool.Active() || pool.FinishedJobs() > 0 {
 			job, closed := pool.GetFinished()
 			if closed {
 				break
@@ -392,7 +392,7 @@ func TestWorkerPool_Loop2(t *testing.T) {
 
 	// consumer
 	go func() {
-		for pool.WorkersActive() || pool.FinishedJobs() > 0 {
+		for pool.Active() || pool.FinishedJobs() > 0 {
 			job, closed := pool.GetFinished()
 			if closed {
 				break
@@ -463,7 +463,7 @@ func TestWorkerPool_Two(t *testing.T) {
 
 	// consumer 1
 	go func() {
-		for pool.WorkersActive() || pool.FinishedJobs() > 0 {
+		for pool.Active() || pool.FinishedJobs() > 0 {
 			job, closed := pool.GetFinished()
 			if closed {
 				break
@@ -481,7 +481,7 @@ func TestWorkerPool_Two(t *testing.T) {
 
 	// consumer 2
 	go func() {
-		for pool.WorkersActive() || pool.FinishedJobs() > 0 {
+		for pool.Active() || pool.FinishedJobs() > 0 {
 			job, closed := pool.GetFinished()
 			if closed {
 				break
@@ -543,7 +543,7 @@ func TestWorkerPool_Two(t *testing.T) {
 
 	pool.Close()
 	pool.waitGroup.Wait()
-	for pool.WorkersActive() || pool.FinishedJobs() > 0 {
+	for pool.Active() || pool.FinishedJobs() > 0 {
 	}
 
 	assert.EqualValues(t, produced, consumed)
