@@ -4,6 +4,7 @@ A WorkerPool Implementation in GO
 Status: Version 1.0 in Development
 
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
+[![Go Report Card](https://goreportcard.com/badge/github.com/frankkopp/WorkerPool)](https://goreportcard.com/report/github.com/frankkopp/WorkerPool)
 
 A common problem of parallel computing in high performance applications is the cost of starting new parallel threads.
 Although GO is very effective and fast when it comes to start new go routines it still might be too expensive in some cases.
@@ -13,7 +14,76 @@ new parallel computation is then usually just a matter of queuing a new work job
 One of the problems with a ThreadPool in Go I'd like to solve is to use Go channels for queuing and retrieving work and 
 results.
 
-This Worker Pool shall fulfill the following requirements.
+This Worker Pool shall fulfill the requirements listed below. 
+
+## Usage
+Work packages (Jobs) need to implement the interface workerpool. Job
+ and need to be self-contained. That is errors should be stored within
+ the Job instance. The same is true for potential results.
+ See folder "example". 
+
+To create a workerpool use:
+```
+ pool := NewWorkerPool(noOfWorkers, bufferSize, queueFinished)
+ noOfWorkers:   are the may number of go routines used
+ bufferSize:    the number of jobs which can be queued without
+	               blocking the caller. As the workerpool immediately
+                starts working on the jobs this number is only
+                reached if the computation is slower than the 
+                adding of jobs or then the adding and computation 
+                is faster than the retrieval of finished jobs
+ queueFinished: if this is true finished jobs are send and stored 
+                in a finished queue (channel) from which they 
+                can and must be retrieved with GetFinished or 
+                GetFinishedWait to avoid the buffer to be filled
+                which would block the workerpool.
+                If this is false the finished jobs are discarded
+                and no buffer is used.
+```
+Adding jobs:
+```
+err := pool.QueueJob(job)
+if err != nil {
+    fmt.Println(err)
+}
+```
+Retrieve finished jobs:
+```
+for {
+    getFinishedWait, done := pool.GetFinishedWait()
+    if done {
+        fmt.Println("WorkerPool finished queue closed")
+        break
+    }
+    if getFinishedWait != nil {
+        // do something
+    }
+}
+```
+Closing a workerpool will disallow new jobs to be queued but will finish already waiting jobs. 
+```
+err := pool.Close()
+if err != nil {
+    fmt.Println(err)
+}
+```
+Stopping a workerpool will disallow new jobs to be queued and will skip any jobs already waiting. 
+Running jobs will be finished.  
+```
+err := pool.Stop()
+if err != nil {
+    fmt.Println(err)
+}
+```
+Shutdown of a workerpool will stop the workerpool and close the finished jobs queue.
+This will prevent access to already finished jobs and any waiting retriever will be
+unblocked.  
+```
+err := pool.Shutdown()
+if err != nil {
+    fmt.Println(err)
+}
+```
 
 ## Requirements:
 * Configurable number of workers - OK
