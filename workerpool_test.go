@@ -239,7 +239,8 @@ func TestQueueOne(t *testing.T) {
 }
 
 // Stress tests
-func _TestStressQueueMany(t *testing.T) {
+func TestStressQueueMany(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
 		t.Run("Stress", TestQueueMany)
@@ -273,17 +274,18 @@ func TestQueueMany(t *testing.T) {
 	assert.EqualValues(t, bufferSize, pool.FinishedJobs())
 }
 
-func _TestStressTestWorkerPool_GetFinished(t *testing.T) {
+func TestStressTestWorkerPoolGetFinished(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_GetFinished)
+		t.Run("Stress", TestWorkerPoolGetFinished)
 	}
 }
 
 // Create several WorkPackages (Job) and add/enqueue them to the pool.
 // Retrieve finished jobs and compare number of jobs enqueued
 // and retrieved.
-func TestWorkerPool_GetFinished(t *testing.T) {
+func TestWorkerPoolGetFinished(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU()*2 - 2
 	bufferSize := 50
@@ -324,10 +326,11 @@ func TestWorkerPool_GetFinished(t *testing.T) {
 	assert.EqualValues(t, bufferSize, count)
 }
 
-func _TestStressWorkerPool_Consumer(t *testing.T) {
+func TestStressWorkerPoolConsumer(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_Consumer)
+		t.Run("Stress", TestWorkerPoolConsumer)
 	}
 }
 
@@ -336,7 +339,7 @@ func _TestStressWorkerPool_Consumer(t *testing.T) {
 // Producer is much faster.
 // When closed number of enqueued jobs need to match
 // the retrieved number of jobs.
-func TestWorkerPool_Consumer(t *testing.T) {
+func TestWorkerPoolConsumer(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 50
@@ -395,16 +398,17 @@ func TestWorkerPool_Consumer(t *testing.T) {
 	pool.waitGroup.Wait()
 }
 
-func _TestStressWorkerPool_Loop2(t *testing.T) {
+func TestStressWorkerPoolLoop2(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_Loop2)
+		t.Run("Stress", TestWorkerPoolLoop2)
 	}
 }
 
 // This uses a separate consumer  and producer thread to
 // create and retrieve jobs. Producer is much slower
-func TestWorkerPool_Loop2(t *testing.T) {
+func TestWorkerPoolLoop2(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 100
@@ -465,17 +469,18 @@ func TestWorkerPool_Loop2(t *testing.T) {
 	pool.waitGroup.Wait()
 }
 
-func _TestStressWorkerPool_Two(t *testing.T) {
+func TestStressWorkerPoolTwo(t *testing.T) {
+	t.SkipNow()
 	t.Parallel()
 	for i := 0; i < 100; i++ {
-		t.Run("Stress", TestWorkerPool_Two)
+		t.Run("Stress", TestWorkerPoolTwo)
 	}
 }
 
 // This uses two separate consumer threads to read results
 // and a timer to close the WorkerPool.
 // It also uses two producers
-func TestWorkerPool_Two(t *testing.T) {
+func TestWorkerPoolTwo(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 100
@@ -580,7 +585,7 @@ func TestWorkerPool_Two(t *testing.T) {
 }
 
 // Two producers. Finished jobs are ignored.
-func TestWorkerPool_ProduceOnly(t *testing.T) {
+func TestWorkerPoolProduceOnly(t *testing.T) {
 	noOfWorkers := runtime.NumCPU() * 2
 	bufferSize := 1000
 	pool := NewWorkerPool(noOfWorkers, bufferSize, false)
