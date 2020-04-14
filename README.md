@@ -36,9 +36,9 @@ See folder "example".
 ```
  pool := NewWorkerPool(noOfWorkers, bufferSize, queueFinished)
 
- noOfWorkers:   are the may number of go routines used
+ noOfWorkers:   are the max number of go routines used
  bufferSize:    the number of jobs which can be queued without
-	            blocking the caller. As the workerpool immediately
+                blocking the caller. As the workerpool immediately
                 starts working on the jobs this number is only
                 reached if the computation is slower than the 
                 adding of jobs or then the adding and computation 
@@ -61,12 +61,12 @@ if err != nil {
 ### Retrieve finished jobs:
 ```
 for {
-    getFinishedWait, done := pool.GetFinishedWait()
+    finishedJob, done := pool.GetFinishedWait()
     if done {
         fmt.Println("WorkerPool finished queue closed")
         break
     }
-    if getFinishedWait != nil {
+    if finishedJob != nil {
         // do something
     }
 }
@@ -79,7 +79,7 @@ if err != nil {
     fmt.Println(err)
 }
 ```
-###Stop a workerpool
+### Stop a workerpool
 Stopping a workerpool will disallow new jobs to be queued and will skip any jobs already waiting. 
 Running jobs will be finished.  
 ```
