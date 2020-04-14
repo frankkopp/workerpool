@@ -52,14 +52,14 @@ See folder "example".
                 and no buffer is used.
 ```
 ### Adding jobs:
-```
+```go
 err := pool.QueueJob(job)
 if err != nil {
     fmt.Println(err)
 }
 ```
 ### Retrieve finished jobs:
-```
+```go
 for {
     finishedJob, done := pool.GetFinishedWait()
     if done {
@@ -73,7 +73,7 @@ for {
 ```
 ### Close a workerpool 
 Closing a workerpool will disallow new jobs to be queued but will finish already waiting jobs. 
-```
+```go
 err := pool.Close()
 if err != nil {
     fmt.Println(err)
@@ -82,7 +82,7 @@ if err != nil {
 ### Stop a workerpool
 Stopping a workerpool will disallow new jobs to be queued and will skip any jobs already waiting. 
 Running jobs will be finished.  
-```
+```go
 err := pool.Stop()
 if err != nil {
     fmt.Println(err)
