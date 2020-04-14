@@ -25,6 +25,7 @@
 package workerpool
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"runtime"
@@ -723,5 +724,90 @@ func TestWorkerPoolProduceOnly(t *testing.T) {
 	assert.NotNil(t, err)
 
 }
+
+type ErrTest struct {
+	err error
+}
+
+func (et *ErrTest) Id() string {
+	return "Test"
+}
+
+func (et *ErrTest) Run() error {
+	time.Sleep(1 * time.Second)
+	et.err = errors.New("test error")
+	return et.err
+}
+
+// This test checks that an error in the provided job will be logged
+// and it is possible to store the err in the job instance and later
+// access from the finished job.
+// Logging will only be tested visually
+func TestErrorInJob(t *testing.T) {
+	t.Parallel()
+	noOfWorkers := runtime.NumCPU() * 2
+	bufferSize := 50
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	// create a special test job which produces an error
+	job := &ErrTest{}
+
+	err := pool.QueueJob(job)
+	if err != nil {
+		log.Println("could not add job")
+	}
+
+	_ = pool.Close()
+	pool.waitGroup.Wait()
+
+	f, _:= pool.GetFinishedWait()
+
+	// check that the finished job has an err stored.
+	assert.EqualValues(t, errors.New("test error"), f.(*ErrTest).err)
+}
+
+
+type PanicTest struct {
+}
+
+func (p *PanicTest) Id() string {
+	return "Test"
+}
+
+func (p *PanicTest) Run() error {
+	time.Sleep(1 * time.Second)
+	panic("panic")
+	return nil
+}
+
+// This test checks that a panic in the provided job will be caught
+// Logging will only be tested visually
+//
+func TestPanicInJob(t *testing.T) {
+	t.Parallel()
+	noOfWorkers := runtime.NumCPU() * 2
+	bufferSize := 50
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	// create a special test job which produces an error
+	job := &PanicTest{}
+
+	err := pool.QueueJob(job)
+	if err != nil {
+		log.Println("could not add job")
+	}
+
+	_ = pool.Close()
+	pool.waitGroup.Wait()
+
+	f, _:= pool.GetFinishedWait()
+
+	// check that the finished job has no err stored as the
+	// job itself has no panic handling
+	assert.NotNil(t, f)
+}
+
 
 // TODO: Benchmark starting a go func directly vs. queueing a job

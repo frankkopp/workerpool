@@ -281,17 +281,11 @@ func (pool *WorkerPool) worker(id int) {
 			//  to synchronize <- channel reads
 			atomic.AddInt32(&pool.working, 1)
 
-			// fmt.Printf("Worker %d started job: %s\n", id, job.Id())
-
 			// Run the job by calling its Run() function
 			// Real error handling needs to be done in the
 			// job's Run() itself and stored into the Job
 			// instance.
-			// IDEA: Use another channel/queue for failed job's?
-			err := job.Run()
-			if err != nil {
-				log.Printf("Error in job %s: %s\n", job.Id(), err)
-			}
+			pool.runIt(job)
 
 			// storing the job in the finished queue
 			// if the finished channel is full this waits here until
@@ -304,6 +298,25 @@ func (pool *WorkerPool) worker(id int) {
 			atomic.AddInt32(&pool.working, -1)
 		} // select
 	} // for
+}
+
+// we call the job's Run() in a separate function to be able to catch
+// any panics the job might throw.
+func (pool *WorkerPool) runIt(job Job) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("Panic in job %s: %s\n", job.Id(), err)
+		}
+	}()
+	// Run the job by calling its Run() function
+	// Real error handling needs to be done in the
+	// job's Run() itself and stored into the Job
+	// instance.
+	// IDEA: Use another channel/queue for failed job's?
+	err := job.Run()
+	if err != nil {
+		log.Printf("Error in job %s: %s\n", job.Id(), err)
+	}
 }
 
 // WaitingJobs returns the number of not yet started jobs
