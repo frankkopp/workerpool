@@ -91,11 +91,14 @@ func TestNewWorkerPool(t *testing.T) {
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
-	fmt.Println("Waiting : ", pool.Jobs())
-	fmt.Println("Working : ", pool.RunningJobs())
-	fmt.Println("Finished: ", pool.FinishedJobs())
-	fmt.Println("All     : ", pool.Jobs())
-	fmt.Println("Active  : ", pool.Active())
+	if debug {
+		fmt.Println("Waiting : ", pool.Jobs())
+		fmt.Println("Working : ", pool.RunningJobs())
+		fmt.Println("Finished: ", pool.FinishedJobs())
+		fmt.Println("All     : ", pool.Jobs())
+		fmt.Println("HasJobs : ", pool.HasJobs())
+		fmt.Println("Active  : ", pool.Active())
+	}
 	assert.EqualValues(t, 0, pool.Jobs())
 	assert.EqualValues(t, 0, pool.RunningJobs())
 	assert.EqualValues(t, 0, pool.FinishedJobs())
@@ -426,11 +429,13 @@ func TestCloseAndRetrieve(t *testing.T) {
 	pool.waitGroup.Wait()
 	<-done
 
-	fmt.Println("Produced: ", atomic.LoadInt32(&produced))
-	fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
-	fmt.Println("Waiting Queue : ", pool.WaitingJobs())
-	fmt.Println("Finished Queue: ", pool.FinishedJobs())
-	fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+	if debug {
+		fmt.Println("Produced: ", atomic.LoadInt32(&produced))
+		fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+		fmt.Println("Waiting Queue : ", pool.WaitingJobs())
+		fmt.Println("Finished Queue: ", pool.FinishedJobs())
+		fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+	}
 	assert.EqualValues(t, consumed, produced)
 	assert.EqualValues(t, pool.WaitingJobs(), 0)
 	assert.EqualValues(t, 0, pool.FinishedJobs())
@@ -507,11 +512,13 @@ func TestStopAndRetrieve(t *testing.T) {
 	pool.waitGroup.Wait()
 	<-done
 
-	fmt.Println("Produced: ", atomic.LoadInt32(&produced))
-	fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
-	fmt.Println("Waiting Queue : ", pool.WaitingJobs())
-	fmt.Println("Finished Queue: ", pool.FinishedJobs())
-	fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+	if debug {
+		fmt.Println("Produced: ", atomic.LoadInt32(&produced))
+		fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+		fmt.Println("Waiting Queue : ", pool.WaitingJobs())
+		fmt.Println("Finished Queue: ", pool.FinishedJobs())
+		fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+	}
 	assert.Less(t, consumed, produced)
 	assert.Greater(t, pool.WaitingJobs(), 0)
 	assert.EqualValues(t, 0, pool.FinishedJobs())
@@ -631,11 +638,13 @@ func TestWorkerPoolTwo(t *testing.T) {
 	<-done
 	<-done
 
-	fmt.Println("Produced: ", atomic.LoadInt32(&produced))
-	fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
-	fmt.Println("Waiting Queue : ", pool.WaitingJobs())
-	fmt.Println("Finished Queue: ", pool.FinishedJobs())
-	fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+	if debug {
+		fmt.Println("Produced: ", atomic.LoadInt32(&produced))
+		fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+		fmt.Println("Waiting Queue : ", pool.WaitingJobs())
+		fmt.Println("Finished Queue: ", pool.FinishedJobs())
+		fmt.Println("Consumed: ", atomic.LoadInt32(&consumed))
+	}
 	assert.EqualValues(t, produced, consumed)
 	assert.EqualValues(t, 0, pool.WaitingJobs())
 }

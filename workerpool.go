@@ -71,7 +71,7 @@ type WorkerPool struct {
 
 	// context to close job queue
 	ingest context.Context
-	close    context.CancelFunc
+	close  context.CancelFunc
 
 	// context to stop (stop) workers and release retrievers
 	process context.Context
@@ -298,14 +298,10 @@ func (pool *WorkerPool) worker(id int) {
 			// it either is emptied by another thread or the stop signal
 			// is received
 			if pool.queueFinished {
-				select {
-				case <-pool.process.Done():
-					return
-				case pool.finished <- job:
-					atomic.AddInt32(&pool.working, -1)
-
-				}
+				pool.finished <- job
 			}
+
+			atomic.AddInt32(&pool.working, -1)
 		} // select
 	} // for
 }
