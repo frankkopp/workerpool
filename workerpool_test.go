@@ -87,7 +87,7 @@ func TestStressTest(t *testing.T) {
 // Create a pool and test that the workers are running
 func TestNewWorkerPool(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 1
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -112,7 +112,7 @@ func TestNewWorkerPool(t *testing.T) {
 // and try to enqueue work after stopping
 func TestStop(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -131,7 +131,7 @@ func TestStop(t *testing.T) {
 // closed channel
 func TestDoubleStop(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -153,7 +153,7 @@ func TestDoubleStop(t *testing.T) {
 // to add a job and check that it fails
 func TestClose(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -174,7 +174,7 @@ func TestClose(t *testing.T) {
 // Close and empty pool twice and check the double closing does not panic.
 func TestDoubleClose(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -191,7 +191,7 @@ func TestDoubleClose(t *testing.T) {
 // queue is still open.
 func TestGetFinished(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -205,7 +205,7 @@ func TestGetFinished(t *testing.T) {
 // that finished queue is now closed (done=true)
 func TestGetFinishedWait(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -244,7 +244,7 @@ func TestQueueNil(t *testing.T) {
 // Close, wait and check that there is a job in the finished queue
 func TestQueueOne(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -276,7 +276,7 @@ func TestStressQueueMany(t *testing.T) {
 // Close, wait and check that there is a job in the finished queue
 func TestQueueMany(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -312,7 +312,7 @@ func TestStressTestWorkerPoolGetFinished(t *testing.T) {
 // and retrieved.
 func TestWorkerPoolGetFinished(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU()*2 - 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -652,7 +652,7 @@ func TestWorkerPoolTwo(t *testing.T) {
 
 // Two producers. Finished jobs are ignored.
 func TestWorkerPoolProduceOnly(t *testing.T) {
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 1000
 	pool := NewWorkerPool(noOfWorkers, bufferSize, false)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)

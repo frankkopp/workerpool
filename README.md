@@ -30,6 +30,9 @@ The implemented Worker Pool shall fulfill the requirements listed below.
 ## Install
 go get github.com/frankkopp/workerpool
 
+## Doc
+https://godoc.org/github.com/frankkopp/workerpool
+
 ## Usage
 Work packages (Jobs) need to implement the interface workerpool. Jobs instances need to be self-contained. E.g.
 results and errors should be stored within the Job instance.
@@ -92,8 +95,6 @@ if err != nil {
     fmt.Println(err)
 }
 ```
-## Doc
-https://godoc.org/github.com/frankkopp/workerpool
 
 ## Requirements:
 This implementation of a Worker Pool aims to meet these requirements.
