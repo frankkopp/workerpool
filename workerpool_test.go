@@ -101,6 +101,7 @@ func TestNewWorkerPool(t *testing.T) {
 	assert.EqualValues(t, 0, pool.FinishedJobs())
 	assert.EqualValues(t, 0, pool.Jobs())
 	assert.True(t, pool.Active())
+	assert.False(t, pool.HasJobs())
 }
 
 // Stop an empty pool, test that the workers have been stopped
@@ -115,7 +116,9 @@ func TestStop(t *testing.T) {
 	assert.EqualValues(t, 0, pool.workersRunning)
 	err := pool.QueueJob(nil)
 	if err != nil {
-		log.Println("Queue has been closed")
+		if debug {
+			log.Println("Queue has been closed")
+		}
 	}
 	assert.NotNil(t, err)
 }
@@ -157,7 +160,9 @@ func TestClose(t *testing.T) {
 
 	err := pool.QueueJob(nil)
 	if err != nil {
-		log.Println("Queue has been closed")
+		if debug {
+			log.Println("Queue has been closed")
+		}
 	}
 	assert.NotNil(t, err)
 }

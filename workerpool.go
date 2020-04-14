@@ -196,8 +196,6 @@ func (pool *WorkerPool) GetFinished() (Job, bool) {
 	// Or return the job (might be nil as well at) but
 	// signal "not closed"
 	select {
-	case <-pool.process.Done():
-		return nil, true
 	case job := <-pool.finished:
 		// channel not closed return result
 		return job, false
@@ -247,9 +245,6 @@ func (pool *WorkerPool) worker(id int) {
 	if atomic.AddInt32(&pool.workersRunning, 1) == int32(pool.noOfWorkers) {
 		pool.startupDone <- true
 	}
-	if debug {
-		fmt.Printf("Worker %d starting.\n", id)
-	}
 
 	// Shutdown
 	// make sure to tell the wait group you're done
@@ -262,9 +257,6 @@ func (pool *WorkerPool) worker(id int) {
 			// jobs will be finished so we close the channel
 			// to release any waiting retrievers.
 			close(pool.finished)
-		}
-		if debug {
-			fmt.Printf("Worker %d shutting down\n", id)
 		}
 		pool.waitGroup.Done()
 	}()
