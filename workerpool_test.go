@@ -90,6 +90,17 @@ func TestNewWorkerPool(t *testing.T) {
 	bufferSize := 1
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+
+	fmt.Println("Waiting : ", pool.Jobs())
+	fmt.Println("Working : ", pool.RunningJobs())
+	fmt.Println("Finished: ", pool.FinishedJobs())
+	fmt.Println("All     : ", pool.Jobs())
+	fmt.Println("Active  : ", pool.Active())
+	assert.EqualValues(t, 0, pool.Jobs())
+	assert.EqualValues(t, 0, pool.RunningJobs())
+	assert.EqualValues(t, 0, pool.FinishedJobs())
+	assert.EqualValues(t, 0, pool.Jobs())
+	assert.True(t, pool.Active())
 }
 
 // Stop an empty pool, test that the workers have been stopped
@@ -202,6 +213,22 @@ func TestGetFinishedWait(t *testing.T) {
 	assert.True(t, timeout)
 	assert.True(t, done)
 	assert.Nil(t, job)
+}
+
+// Add/enqueue a nil job to the pool.
+func TestQueueNil(t *testing.T) {
+	t.Parallel()
+	noOfWorkers := runtime.NumCPU()
+	bufferSize := 5
+	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
+	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
+	err := pool.QueueJob(nil)
+	if err != nil {
+		log.Println("could not add job")
+	}
+	_ = pool.Close()
+	pool.waitGroup.Wait()
+	assert.EqualValues(t, 0, pool.FinishedJobs())
 }
 
 // Create one WorkPackage (Job) and add/enqueue it to the pool.
@@ -503,7 +530,6 @@ func TestWorkerPoolTwo(t *testing.T) {
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
-
 	done := make(chan bool)
 	consumed := int32(0)
 	produced := int32(0)
@@ -616,24 +642,26 @@ func TestWorkerPoolProduceOnly(t *testing.T) {
 	pool := NewWorkerPool(noOfWorkers, bufferSize, false)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 
+	done := make(chan bool)
+	produced := int32(0)
+
 	go func() {
 		time.Sleep(10 * time.Second)
 		_ = pool.Close()
 	}()
 
-	i := int32(0)
 	// producer 1
 	go func() {
 		for {
-			atomic.AddInt32(&i, 1)
+			atomic.AddInt32(&produced, 1)
 			job := &WorkPackage{
-				jobID:  int(i),
+				jobID:  int(produced),
 				f:      1000000.0,
 				div:    1.000001,
 				result: 0,
 			}
 			if debug {
-				fmt.Printf("P1 adds job: %d\n", i)
+				fmt.Printf("P1 adds job: %d\n", produced)
 			}
 			err := pool.QueueJob(job)
 			if err != nil {
@@ -643,20 +671,21 @@ func TestWorkerPoolProduceOnly(t *testing.T) {
 				break
 			}
 		}
+		done <- true
 	}()
 
 	// producer 2
 	go func() {
 		for {
-			atomic.AddInt32(&i, 1)
+			atomic.AddInt32(&produced, 1)
 			job := &WorkPackage{
-				jobID:  int(i),
+				jobID:  int(produced),
 				f:      1000000.0,
 				div:    1.000001,
 				result: 0,
 			}
 			if debug {
-				fmt.Printf("P2 adds job: %d\n", i)
+				fmt.Printf("P2 adds job: %d\n", produced)
 			}
 			err := pool.QueueJob(job)
 			if err != nil {
@@ -666,9 +695,19 @@ func TestWorkerPoolProduceOnly(t *testing.T) {
 				break
 			}
 		}
+		done <- true
 	}()
 
-	pool.waitGroup.Wait()
+	<-done
+	<-done
+
+	job, err := pool.GetFinished()
+	assert.Nil(t, job)
+	assert.NotNil(t, err)
+	job, err = pool.GetFinishedWait()
+	assert.Nil(t, job)
+	assert.NotNil(t, err)
+
 }
 
 // TODO: Benchmark starting a go func directly vs. queueing a job

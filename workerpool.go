@@ -198,10 +198,7 @@ func (pool *WorkerPool) GetFinished() (Job, bool) {
 	select {
 	case <-pool.process.Done():
 		return nil, true
-	case job, ok := <-pool.finished:
-		if !ok { // channel closed
-			return nil, true
-		}
+	case job := <-pool.finished:
 		// channel not closed return result
 		return job, false
 	default:
