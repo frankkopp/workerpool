@@ -102,7 +102,6 @@ func TestStop(t *testing.T) {
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
 	_ = pool.Stop()
 	assert.EqualValues(t, 0, pool.workersRunning)
-
 	err := pool.QueueJob(nil)
 	if err != nil {
 		log.Println("Queue has been closed")

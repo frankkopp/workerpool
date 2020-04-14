@@ -4,6 +4,7 @@ A WorkerPool Implementation in GO
 Status: Version 1.0 in Development
 
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
+[![codecov](https://codecov.io/gh/frankkopp/WorkerPool/branch/master/graph/badge.svg)](https://codecov.io/gh/frankkopp/WorkerPool)
 [![Go Report Card](https://goreportcard.com/badge/github.com/frankkopp/WorkerPool)](https://goreportcard.com/report/github.com/frankkopp/WorkerPool)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/frankkopp/WorkerPool/blob/master/LICENSE)
 
