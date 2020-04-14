@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2020 Frank Kopp
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 // Package workerpool provides a worker pool implementation using channels
 // internally without exposing them to the external user.
 // Usage:
@@ -23,17 +47,18 @@ type Job interface {
 }
 
 // WorkerPool is a set of workers waiting for jobs to be queued
-// and executed. Create anew instance with
+// and executed. Create a new instance with
 //  NewWorkerPool()
 type WorkerPool struct {
 	waitGroup      sync.WaitGroup
 	noOfWorkers    int
 	workersRunning int32
+	startupDone    chan bool
 
 	// number of job in progress
 	// TODO: this is not transactional - there is a gap between
 	//  Waiting Jobs and this number as I do not know a good way
-	//  to synchronize <- channel reads
+	//  to synchronize <-channel reads yet
 	working int
 
 	// flag for storing finished jobs or not
@@ -62,6 +87,7 @@ func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerP
 		waitGroup:      sync.WaitGroup{},
 		noOfWorkers:    noOfWorkers,
 		workersRunning: 0,
+		startupDone:    make(chan bool),
 		working:        0,
 		queueFinished:  queueFinished,
 		bufferSize:     bufferSize,
@@ -77,8 +103,7 @@ func NewWorkerPool(noOfWorkers int, bufferSize int, queueFinished bool) *WorkerP
 	}
 
 	// wait until all workers are running
-	for int(atomic.LoadInt32(&pool.workersRunning)) < pool.noOfWorkers {
-	}
+	<-pool.startupDone
 
 	return pool
 }
@@ -130,20 +155,6 @@ func (pool *WorkerPool) Stop() (err error) {
 	// wait until all workers are terminated
 	pool.waitGroup.Wait()
 	return nil
-}
-
-// Shutdown stops the WorkerPool and closes the finished channel.
-// No more queries to the finished queue will be accepted.
-// Also releases already waiting queries to the finished channel.
-func (pool *WorkerPool) Shutdown() (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.New(fmt.Sprint("Finished queue could not be closed: ", r))
-		}
-	}()
-	e := pool.Stop()
-	close(pool.finished)
-	return e
 }
 
 // GetFinished returns finished jobs if any available.
@@ -208,8 +219,6 @@ func (pool *WorkerPool) GetFinishedWait() (Job, bool) {
 	// is available or the channel is closed or the
 	// WorkerPool has been closed.
 	select {
-	case <-pool.ctx.Done():
-		return nil, true
 	case job, ok := <-pool.finished:
 		if !ok {
 			return nil, true
@@ -221,20 +230,35 @@ func (pool *WorkerPool) GetFinishedWait() (Job, bool) {
 // ///////////////////////////////
 // Worker
 func (pool *WorkerPool) worker(ctx context.Context, id int) {
+
+	// Startup
 	pool.waitGroup.Add(1)
-	atomic.AddInt32(&pool.workersRunning, 1)
+	if atomic.AddInt32(&pool.workersRunning, 1) == int32(pool.noOfWorkers) {
+		pool.startupDone <- true
+	}
+	if debug {
+		fmt.Printf("Worker %d starting.\n", id)
+	}
+
+	// Shutdown
 	// make sure to tell the wait group you're done
 	// and decrease the workersRunning counter.
 	// Unfortunately WaitGroup does not has external
 	// access to its counters
 	defer func() {
-		atomic.AddInt32(&pool.workersRunning, -1)
-		pool.waitGroup.Done()
+		if atomic.AddInt32(&pool.workersRunning, -1) == 0 {
+			// as we closed down all the workers now no more
+			// jobs will be finished so we close the channel
+			// to release any waiting retrievers.
+			close(pool.finished)
+		}
 		if debug {
 			fmt.Printf("Worker %d shutting down\n", id)
 		}
+		pool.waitGroup.Done()
 	}()
 
+	// Running
 	for { // loop for querying incoming jobs or stop signal
 		select {
 		case <-ctx.Done():
