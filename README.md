@@ -5,6 +5,7 @@ Status: Version 1.0 in Development
 
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
 [![Go Report Card](https://goreportcard.com/badge/github.com/frankkopp/WorkerPool)](https://goreportcard.com/report/github.com/frankkopp/WorkerPool)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/frankkopp/WorkerPool/blob/master/LICENSE)
 
 A common problem of parallel computing in high performance applications is the cost and effort of starting new parallel threads.
 Although GO is very effective and fast when it comes to start new go routines it still might be too expensive, too much effort 
