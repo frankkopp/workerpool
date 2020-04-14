@@ -1,7 +1,7 @@
 # WorkerPool
 A WorkerPool Implementation in GO
 
-Status: Version 1.0 in Development
+Status: In Development - no release yet
 
 [![GoDoc](https://godoc.org/github.com/frankkopp/workerpool?status.svg)](https://godoc.org/github.com/frankkopp/workerpool)
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
