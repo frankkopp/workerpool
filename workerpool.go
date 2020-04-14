@@ -356,7 +356,7 @@ func (pool *WorkerPool) Jobs() int {
 		len(pool.finished) + len(pool.jobs)
 }
 
-// Active return true if the WorkPool workers are still active
+// Active returns true if the WorkPool workers are still active
 func (pool *WorkerPool) Active() bool {
 	return pool.workersRunning > 0
 }

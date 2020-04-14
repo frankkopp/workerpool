@@ -34,7 +34,7 @@ import (
 	"github.com/frankkopp/workerpool"
 )
 
-// WorkPackage todo
+// WorkPackage for test
 type WorkPackage struct {
 	JobID  int
 	Result time.Duration
@@ -67,7 +67,7 @@ func main() {
 	pool := workerpool.NewWorkerPool(noOfWorkers, bufferSize, true)
 
 	// Timed stop routine - tells the workerpool to stop after some time
-	// the time should be longer than the retriever delay below for this
+	// The time should be longer than the retriever delay below for this
 	// example
 	go func() {
 		time.Sleep(6500 * time.Millisecond)
@@ -81,18 +81,18 @@ func main() {
 	// Timed retrieval routine - starts retrieving results after some time
 	go func() {
 		time.Sleep(5 * time.Second)
-		for i := 0; ; {
+		for consumed := 0; ; {
 			getFinishedWait, done := pool.GetFinishedWait()
 			if done {
 				fmt.Println("WorkerPool finished queue closed")
 				break
 			}
 			if getFinishedWait != nil {
-				i++
+				consumed++
 				fmt.Println("Waiting : ", pool.Jobs())
 				fmt.Println("Working : ", pool.RunningJobs())
 				fmt.Println("Finished: ", pool.FinishedJobs())
-				fmt.Println("Received: ", i)
+				fmt.Println("Received: ", consumed)
 				fmt.Println("Result  : ", getFinishedWait.(*WorkPackage).Result, " === ")
 				fmt.Println()
 			}
@@ -118,7 +118,7 @@ func main() {
 
 	// Close queue - this will close the workerpool which prevents adding
 	// new jobs but will finish any waiting and running jobs.
-	fmt.Println("Close Queue")
+	fmt.Println("Close Queue ==============")
 	err := pool.Close()
 	if err != nil {
 		fmt.Println(err)

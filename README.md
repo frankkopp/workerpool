@@ -3,6 +3,7 @@ A WorkerPool Implementation in GO
 
 Status: Version 1.0 in Development
 
+[![GoDoc](https://godoc.org/github.com/frankkopp/workerpool?status.svg)](https://godoc.org/github.com/frankkopp/workerpool)
 [![Build Status](https://travis-ci.org/frankkopp/WorkerPool.svg?branch=master)](https://travis-ci.org/frankkopp/WorkerPool)
 [![codecov](https://codecov.io/gh/frankkopp/WorkerPool/branch/master/graph/badge.svg)](https://codecov.io/gh/frankkopp/WorkerPool)
 [![Go Report Card](https://goreportcard.com/badge/github.com/frankkopp/WorkerPool)](https://goreportcard.com/report/github.com/frankkopp/WorkerPool)
@@ -25,6 +26,9 @@ The implemented Worker Pool shall fulfill the requirements listed below.
 * Controlling how much CPU resources (threads) are used in parallel at any given time. 
 * When a buffered task pipeline is required 
     * intake of jobs -> buffer -> processing of jobs -> buffer -> output of finished jobs
+
+## Install
+go get github.com/frankkopp/workerpool
 
 ## Usage
 Work packages (Jobs) need to implement the interface workerpool. Jobs instances need to be self-contained. E.g.
@@ -88,6 +92,8 @@ if err != nil {
     fmt.Println(err)
 }
 ```
+## Doc
+https://godoc.org/github.com/frankkopp/workerpool
 
 ## Requirements:
 This implementation of a Worker Pool aims to meet these requirements.
@@ -157,8 +163,8 @@ This implementation of a Worker Pool aims to meet these requirements.
 * Using Interface for Jobs. It is very confusing to work with pointers and Interfaces.
     * works but still needs lots of careful attention  
     
-
-
+## Author
+By [Frank Kopp](https://github.com/frankkopp) 
 
 
   
