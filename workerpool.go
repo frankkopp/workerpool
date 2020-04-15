@@ -22,10 +22,11 @@
  * SOFTWARE.
  */
 
-// Package workerpool provides a worker pool implementation using channels
-// internally without exposing them to the external user.
-// Usage:
-//  See https://github.com/frankkopp/WorkerPool/blob/master/README.md
+// Package workerpool provides a worker pool implementation using go channels
+// The motivation for this package was to learn the Go way of creating a
+// worker pool with channels avoiding "traditional" state managed concurrency.
+// See the provided README for more detailed information.
+// https://github.com/frankkopp/WorkerPool/blob/master/README.md
 package workerpool
 
 import (
