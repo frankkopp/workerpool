@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,10 +45,6 @@ type WorkPackage struct {
 	f      float64
 	div    float64
 	result time.Duration
-}
-
-func (w *WorkPackage) Id() string {
-	return strconv.Itoa(w.jobID)
 }
 
 func (w *WorkPackage) Run() error {
@@ -87,7 +82,7 @@ func TestStressTest(t *testing.T) {
 // Create a pool and test that the workers are running
 func TestNewWorkerPool(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 1
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -112,7 +107,7 @@ func TestNewWorkerPool(t *testing.T) {
 // and try to enqueue work after stopping
 func TestStop(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -131,7 +126,7 @@ func TestStop(t *testing.T) {
 // closed channel
 func TestDoubleStop(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -153,7 +148,7 @@ func TestDoubleStop(t *testing.T) {
 // to add a job and check that it fails
 func TestClose(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -174,7 +169,7 @@ func TestClose(t *testing.T) {
 // Close and empty pool twice and check the double closing does not panic.
 func TestDoubleClose(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -191,7 +186,7 @@ func TestDoubleClose(t *testing.T) {
 // queue is still open.
 func TestGetFinished(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -205,7 +200,7 @@ func TestGetFinished(t *testing.T) {
 // that finished queue is now closed (done=true)
 func TestGetFinishedWait(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -244,7 +239,7 @@ func TestQueueNil(t *testing.T) {
 // Close, wait and check that there is a job in the finished queue
 func TestQueueOne(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -259,6 +254,7 @@ func TestQueueOne(t *testing.T) {
 		log.Println("could not add job")
 	}
 	_ = pool.Close()
+	assert.EqualValues(t, 1, pool.Jobs())
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 1, pool.FinishedJobs())
 }
@@ -276,7 +272,7 @@ func TestStressQueueMany(t *testing.T) {
 // Close, wait and check that there is a job in the finished queue
 func TestQueueMany(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -295,6 +291,7 @@ func TestQueueMany(t *testing.T) {
 		}
 	}
 	_ = pool.Close()
+	assert.EqualValues(t, bufferSize, pool.Jobs())
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, bufferSize, pool.FinishedJobs())
 }
@@ -312,7 +309,7 @@ func TestStressTestWorkerPoolGetFinished(t *testing.T) {
 // and retrieved.
 func TestWorkerPoolGetFinished(t *testing.T) {
 	t.Parallel()
-	noOfWorkers := runtime.NumCPU()*2 - 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 50
 	pool := NewWorkerPool(noOfWorkers, bufferSize, true)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -331,6 +328,7 @@ func TestWorkerPoolGetFinished(t *testing.T) {
 		}
 	}
 
+	assert.EqualValues(t, bufferSize, pool.Jobs())
 	_ = pool.Close()
 
 	count := 0
@@ -345,10 +343,10 @@ func TestWorkerPoolGetFinished(t *testing.T) {
 			}
 			count++
 		}
-		runtime.Gosched()
 	}
-
 	assert.EqualValues(t, bufferSize, count)
+	assert.EqualValues(t, 0, pool.Jobs())
+
 }
 
 func TestStressWorkerPoolConsumer(t *testing.T) {
@@ -416,7 +414,7 @@ func TestCloseAndRetrieve(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C1 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C1 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -499,7 +497,7 @@ func TestStopAndRetrieve(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C1 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C1 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -610,7 +608,7 @@ func TestWorkerPoolTwo(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C1 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C1 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -627,7 +625,7 @@ func TestWorkerPoolTwo(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C2 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C2 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -652,7 +650,7 @@ func TestWorkerPoolTwo(t *testing.T) {
 
 // Two producers. Finished jobs are ignored.
 func TestWorkerPoolProduceOnly(t *testing.T) {
-	noOfWorkers := runtime.NumCPU() * 2
+	noOfWorkers := runtime.NumCPU()
 	bufferSize := 1000
 	pool := NewWorkerPool(noOfWorkers, bufferSize, false)
 	assert.EqualValues(t, noOfWorkers, pool.workersRunning)
@@ -783,7 +781,6 @@ func (p *PanicTest) Run() error {
 
 // This test checks that a panic in the provided job will be caught
 // Logging will only be tested visually
-//
 func TestPanicInJob(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
@@ -808,6 +805,3 @@ func TestPanicInJob(t *testing.T) {
 	// job itself has no panic handling
 	assert.NotNil(t, f)
 }
-
-
-// TODO: Benchmark starting a go func directly vs. queueing a job
