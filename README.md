@@ -133,11 +133,7 @@ This implementation of a Worker Pool aims to meet these requirements.
         * wait until a finished job becomes available if the WorkPool is still able to produce finished jobs - OK
             * E.g. the job queue is not closed
             * E.g. the job queue is closed but there are still jobs in progress
-        * unblock and return nil if the job queue is closed and there are no more jobs in progress
-
-### Optional requirements:
-* Have counters for waiting jobs, jobs in progress and jobs finished - OPEN not yet working
-    * the sum of these must always be correct, e.g. equal all queued jobs if no job has been retrieved - TODO
+        * unblock and return nil if the job queue is closed and there are no more jobs in progress - OK
 
 ### Ideas for future versions:
 * make Jobs interruptible - e.g. add interface function "Stop()"  
