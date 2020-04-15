@@ -25,12 +25,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"golang.org/x/net/html"
 
@@ -66,67 +66,62 @@ func main() {
 
 	pool = workerpool.NewWorkerPool(4, 500, true)
 
-	root := &ProjectFile{
+	fileMap = make(map[string]*ProjectFile)
+
+	tmp := make([]*ProjectFile,0,20)
+	var root = &ProjectFile{
 		Href:          "/frankkopp/FrankyGo",
 		Name:          "root",
 		NodeType:      Folder,
 		CrawlStarted:  false,
 		CrawlFinished: false,
+		Subnodes:      &tmp,
 	}
 
-	fileMap = make(map[string]*ProjectFile)
-	fileMap[root.Href] = root
-	complete := make(chan bool)
+	ctx, done := context.WithCancel(context.Background())
 
-	inProgress := int32(0)
+	fileMapLock.Lock()
+	fileMap[root.Href] = root
+	fileMapLock.Unlock()
 
 	go func() {
 		for {
-			// check if we have found all files
-			foundOne := false
-
-			fileMapLock.Lock()
-			for _, f := range fileMap {
-				if !f.CrawlStarted {
-					f.CrawlStarted = true
-					atomic.AddInt32(&inProgress, 1)
-					pool.QueueJob(f)
-				} else if !f.CrawlFinished {
-					foundOne = true
+			select {
+			case <-ctx.Done():
+			default:
+				fileMapLock.Lock()
+				for _, entry := range fileMap {
+					if entry.CrawlStarted {
+						continue
+					} else {
+						entry.CrawlStarted = true
+						pool.QueueJob(entry)
+					}
 				}
+				fileMapLock.Unlock()
 			}
-			if !foundOne && atomic.LoadInt32(&inProgress) == 0 {
-				pool.Close()
-			}
-			fileMapLock.Unlock()
-
 			runtime.Gosched()
 		}
 	}()
 
 	go func() {
 		for {
-			job, done := pool.GetFinishedWait()
-			if done {
-				complete <- true
-				return
-			}
-			if len(*job.(*ProjectFile).Subnodes) > 0 {
-				for _, j := range *job.(*ProjectFile).Subnodes {
+			job, _ := pool.GetFinishedWait()
+			item := job.(*ProjectFile)
+			if len(*item.Subnodes) > 0 {
+				for _, sn := range *item.Subnodes {
 					fileMapLock.Lock()
-					_, found := fileMap[j.Href]
-					if !found {
-						fileMap[j.Href] = j
-						atomic.CompareAndSwapInt32(&inProgress, 1, 1)
+					if _, found := fileMap["foo"]; !found {
+						fileMap[sn.Href] = sn
 					}
 					fileMapLock.Unlock()
 				}
 			}
-			atomic.AddInt32(&inProgress, -1)
 		}
+		done()
 	}()
 
-	<-complete
+	<-ctx.Done()
 
 	fmt.Println("FINISHED")
 
@@ -218,7 +213,15 @@ func readContent(tokenizer *html.Tokenizer, newItems *[]*ProjectFile) {
 }
 
 func getItemLink(at *html.Token) *ProjectFile {
-	item := &ProjectFile{}
+	tmp := make([]*ProjectFile,0,20)
+	item := &ProjectFile{
+		Href:          "",
+		Name:          "",
+		NodeType:      0,
+		CrawlStarted:  false,
+		CrawlFinished: false,
+		Subnodes:      &tmp,
+	}
 	for _, a := range at.Attr {
 		switch a.Key {
 		case "title":
