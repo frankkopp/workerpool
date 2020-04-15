@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,10 +45,6 @@ type WorkPackage struct {
 	f      float64
 	div    float64
 	result time.Duration
-}
-
-func (w *WorkPackage) Id() string {
-	return strconv.Itoa(w.jobID)
 }
 
 func (w *WorkPackage) Run() error {
@@ -259,6 +254,7 @@ func TestQueueOne(t *testing.T) {
 		log.Println("could not add job")
 	}
 	_ = pool.Close()
+	assert.EqualValues(t, 1, pool.Jobs())
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, 1, pool.FinishedJobs())
 }
@@ -295,6 +291,7 @@ func TestQueueMany(t *testing.T) {
 		}
 	}
 	_ = pool.Close()
+	assert.EqualValues(t, bufferSize, pool.Jobs())
 	pool.waitGroup.Wait()
 	assert.EqualValues(t, bufferSize, pool.FinishedJobs())
 }
@@ -331,6 +328,7 @@ func TestWorkerPoolGetFinished(t *testing.T) {
 		}
 	}
 
+	assert.EqualValues(t, bufferSize, pool.Jobs())
 	_ = pool.Close()
 
 	count := 0
@@ -345,10 +343,10 @@ func TestWorkerPoolGetFinished(t *testing.T) {
 			}
 			count++
 		}
-		runtime.Gosched()
 	}
-
 	assert.EqualValues(t, bufferSize, count)
+	assert.EqualValues(t, 0, pool.Jobs())
+
 }
 
 func TestStressWorkerPoolConsumer(t *testing.T) {
@@ -416,7 +414,7 @@ func TestCloseAndRetrieve(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C1 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C1 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -499,7 +497,7 @@ func TestStopAndRetrieve(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C1 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C1 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -610,7 +608,7 @@ func TestWorkerPoolTwo(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C1 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C1 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -627,7 +625,7 @@ func TestWorkerPoolTwo(t *testing.T) {
 			}
 			if job != nil {
 				if debug {
-					fmt.Printf("C2 Result for %s: %s\n", job.Id(), job.(*WorkPackage).result)
+					fmt.Printf("C2 Result for %d: %s\n", job.(*WorkPackage).jobID, job.(*WorkPackage).result)
 				}
 				atomic.AddInt32(&consumed, 1)
 			}
@@ -783,7 +781,6 @@ func (p *PanicTest) Run() error {
 
 // This test checks that a panic in the provided job will be caught
 // Logging will only be tested visually
-//
 func TestPanicInJob(t *testing.T) {
 	t.Parallel()
 	noOfWorkers := runtime.NumCPU() * 2
@@ -808,6 +805,3 @@ func TestPanicInJob(t *testing.T) {
 	// job itself has no panic handling
 	assert.NotNil(t, f)
 }
-
-
-// TODO: Benchmark starting a go func directly vs. queueing a job
